@@ -1,0 +1,178 @@
+"""What kind of app a window is, from its class (or Wayland app_id): a
+terminal, a code editor, a document, a web browser, or an app with a
+typing quirk.
+
+The class arrives from several sources (the GNOME Shell extension, the KWin
+script, the compositors) that don't agree on capitalisation, so the lists
+are matched case-insensitively, but exactly: "kitty-photo-viewer" isn't a
+terminal.
+"""
+
+# Window classes that need Ctrl+Shift+V for paste (terminals).
+# All other apps get plain Ctrl+V — works in chat/editor/browser inputs and
+# avoids a Chromium/Electron regression that mishandles synthetic Ctrl+Shift+V.
+_TERMINAL_WM_CLASSES = frozenset({
+    # Ptyxis's Flathub build keeps the id it had before GNOME adopted it.
+    "org.gnome.Ptyxis", "Ptyxis", "app.devsuite.Ptyxis",
+    # GNOME Shell reports GNOME Terminal (Ubuntu 24.04, Zorin 18, Debian) by
+    # its server process: without this one, Ctrl+V typed a raw ^V there.
+    "org.gnome.Terminal", "Gnome-terminal", "gnome-terminal-server",
+    "konsole", "org.kde.konsole",
+    "yakuake", "org.kde.yakuake",
+    "kitty",
+    "Alacritty",
+    "WezTerm", "org.wezfurlong.wezterm",
+    "foot", "footclient",
+    "Tilix", "com.gexperts.Tilix",
+    "Terminator",
+    "xterm", "XTerm", "UXTerm",
+    "rxvt", "URxvt",
+    # Common on Sway / Hyprland setups.
+    "com.mitchellh.ghostty", "ghostty",
+    "org.gnome.Console", "kgx",
+    "xfce4-terminal", "Xfce4-terminal",
+    "com.system76.CosmicTerm",
+    "mate-terminal", "lxterminal", "qterminal", "terminology",
+    "st", "st-256color", "sakura", "Termite", "contour",
+    # X11 desktops (XFCE, MATE, Cinnamon...) report these WM_CLASS names.
+    "Guake", "Tilda", "Roxterm", "cool-retro-term", "Eterm",
+    # elementary OS's own, Black Box (Flathub), Deepin's, and the
+    # cross-platform ones (Electron, Rust), by their app ids and classes.
+    "io.elementary.terminal", "com.raggesilver.BlackBox", "deepin-terminal",
+    "tabby", "Hyper", "dev.warp.Warp", "waveterm", "rio",
+})
+
+# Lower-cased once, because the class arrives from several independent sources
+# (the GNOME Shell extension, the KWin script, the compositors) that don't
+# agree on capitalisation.
+_TERMINAL_WM_CLASSES_LOWER = frozenset(c.lower() for c in _TERMINAL_WM_CLASSES)
+
+
+# Code editors, for "Plain text in terminals and code editors": no period
+# typed at the end. Matched case-insensitively, plus any JetBrains IDE
+# (jetbrains-idea, jetbrains-pycharm...). Kate is left out: it's used for
+# prose as much as code.
+_CODE_EDITOR_CLASSES_LOWER = frozenset({
+    "code", "code-oss", "code-url-handler", "codium", "vscodium",
+    "dev.zed.zed", "zed", "sublime_text", "geany", "org.gnome.builder",
+    "org.kde.kdevelop", "neovide",
+})
+
+
+# Word processors, where Ctrl+B, Ctrl+I and Ctrl+U are bold, italics and
+# underline (voice editing's formatting). Window classes and Wayland app ids.
+_WORD_PROCESSOR_CLASSES_LOWER = frozenset({
+    "libreoffice", "libreoffice-writer", "libreoffice-calc", "libreoffice-impress",
+    "libreoffice-draw", "soffice", "org.libreoffice.libreoffice",
+    "onlyoffice-desktopeditors", "desktopeditors", "org.onlyoffice.desktopeditors",
+    "abiword", "com.abisource.abiword", "calligrawords", "org.kde.calligrawords",
+})
+
+
+def is_word_processor(wm_class: str | None) -> bool:
+    """Whether the focused app is a word processor, where Ctrl+B/I/U format text."""
+    return bool(wm_class) and wm_class.lower() in _WORD_PROCESSOR_CLASSES_LOWER
+
+
+# Text editors, word processors and note apps, where Enter only starts a new
+# line: "Send each dictation automatically" leaves them alone, as it does code
+# editors (KWrite got a new line after every dictation).
+# Saying "press enter" still presses it.
+_DOCUMENT_CLASSES_LOWER = _WORD_PROCESSOR_CLASSES_LOWER | {
+    "org.kde.kwrite", "kwrite", "org.kde.kate", "kate",
+    "org.gnome.texteditor", "gnome-text-editor", "org.gnome.gedit", "gedit",
+    "org.xfce.mousepad", "mousepad", "xed", "pluma", "featherpad", "notepadqq",
+    "org.kde.ghostwriter", "ghostwriter", "org.gnome.gitlab.somas.apostrophe",
+    "obsidian", "joplin", "typora", "marktext", "wps", "wpp", "et",
+}
+
+
+def is_document_window(wm_class: str | None) -> bool:
+    """Whether Enter in the focused window only starts a new line."""
+    if not wm_class:
+        return False
+    return wm_class.lower() in _DOCUMENT_CLASSES_LOWER or app_kind(wm_class) == "code"
+
+
+def why_no_automatic_enter(wm_class: str | None) -> str:
+    """Why "Send each dictation automatically" presses no Enter in this
+    window, or "" where it may. A text editor's Enter only starts a new
+    line; a terminal's would run the words as a command before they're
+    read. Saying "press enter" still presses it in both."""
+    if is_document_window(wm_class):
+        return "Enter only starts a new line in this app"
+    if is_terminal_class(wm_class):
+        return "in a terminal Enter would run it as a command"
+    return ""
+
+
+def app_kind(wm_class: str | None) -> str:
+    """"terminal", "code" or "" for the focused window, for plain_for_app."""
+    if not wm_class:
+        return ""
+    if is_terminal_class(wm_class):
+        return "terminal"
+    lower = wm_class.lower()
+    if lower in _CODE_EDITOR_CLASSES_LOWER or lower.startswith("jetbrains-"):
+        return "code"
+    return ""
+
+
+def is_terminal_class(wm_class: str | None) -> bool:
+    """Whether the focused window is a terminal, so paste uses Ctrl+Shift+V.
+
+    A terminal treats plain Ctrl+V as readline's quoted-insert and shows
+    nothing, so getting this wrong is silent. None means nobody reported focus
+    (no provider on this desktop) and must not be read as a terminal.
+
+    Matching is exact-but-case-insensitive: substring matching would make
+    "kitty-photo-viewer" a terminal.
+    """
+    if not wm_class:
+        return False
+    return wm_class.lower() in _TERMINAL_WM_CLASSES_LOWER
+
+
+# Web browsers, whose address bar Ctrl+L reaches and where Ctrl+T opens a tab
+# with the cursor in it: "go to youtube.com" and "web search ..." type there.
+# The classes and Wayland app ids of the distro, Flatpak and vendor builds.
+_BROWSER_CLASSES_LOWER = frozenset({
+    "firefox", "org.mozilla.firefox", "firefox-esr", "librewolf",
+    "io.gitlab.librewolf-community", "zen", "app.zen_browser.zen", "floorp", "waterfox",
+    "chromium", "chromium-browser", "org.chromium.chromium", "google-chrome",
+    "com.google.chrome", "brave-browser", "com.brave.browser", "microsoft-edge",
+    "vivaldi-stable", "opera", "org.gnome.epiphany", "epiphany", "falkon", "org.kde.falkon",
+})
+
+
+def is_browser_class(wm_class: str | None) -> bool:
+    """Whether *wm_class* is a web browser's windows' class."""
+    return bool(wm_class) and wm_class.lower() in _BROWSER_CLASSES_LOWER
+
+
+# Electron/Chromium apps where synthetic paste (Ctrl+V from /dev/uinput) is
+# broken on Wayland — modifier-key chords are silently dropped and the focused
+# input blurs. These apps are typed into instead (plain character keystrokes
+# still work, per OpenWhispr #240 and others).
+_PASTE_BROKEN_CLASSES_LOWER = frozenset({
+    "claude", "claude-desktop", "claude desktop", "anthropic-claude",
+    # Claude Desktop reports this reverse-DNS id or one of the names above,
+    # depending on how it was packaged; a missing one means a paste that
+    # silently does nothing.
+    "com.anthropic.claude",
+})
+
+
+def pastes_broken(wm_class) -> bool:
+    """Whether a synthetic Ctrl+V does nothing in *wm_class* (Claude
+    Desktop), so text has to be typed there. Compared without case, as the
+    terminal check is: a build that reports "Claude-Desktop" is the same app."""
+    return bool(wm_class) and wm_class.lower() in _PASTE_BROKEN_CLASSES_LOWER
+
+
+# KDE's text editor component takes Shift+Enter as Insert Smart Newline,
+# which starts the new line with the symbols the line above starts with: "$45",
+# new line, "$25" came out as "$$25", and one more "$" each line after.
+SMART_NEWLINE_CLASSES_LOWER = frozenset({
+    "org.kde.kwrite", "kwrite", "org.kde.kate", "kate", "org.kde.kdevelop",
+})

@@ -1,0 +1,309 @@
+"""
+TuxTalk's own menu launcher and icon, for a self-managed AppImage or a source
+install (a pip install into a venv): the icon in the user's icon folders, the
+Applications-menu entry with its right-click shortcuts, and the hidden entry
+that gives first-run windows TuxTalk's icon. Packages ship their own launcher
+and icon.
+"""
+
+import os
+import threading
+from pathlib import Path
+from typing import Optional, Tuple
+
+from . import __version__, installation, menu_cache, source_install
+from .app_icon import user_icon_file
+from .autostart import desktop_exec_program
+from .logger import setup_logger
+
+logger = setup_logger(__name__)
+
+# The Applications-menu entry first run writes (a hidden one before it).
+DESKTOP_FILE_PATH = os.path.expanduser("~/.local/share/applications/tuxtalk.desktop")
+
+
+def _icon_source() -> Optional[str]:
+    """The PNG to install: the running AppImage's own, else the package's copy
+    (a source install has no project folder around it); None when there is
+    neither."""
+    candidates = []
+    appdir = os.environ.get("APPDIR", "") if installation.get_running_appimage_path() else ""
+    if appdir:
+        candidates += [os.path.join(appdir, "local.PhononLinux.App.png"),
+                       os.path.join(appdir, "tuxtalk.png"),
+                       os.path.join(appdir, "usr", "share", "icons", "hicolor", "256x256",
+                                    "apps", "tuxtalk.png")]
+    candidates.append(str(Path(__file__).parent / "icons" / "local.PhononLinux.App.png"))
+    return next((path for path in candidates if os.path.exists(path)), None)
+
+
+def install_app_icon() -> Optional[str]:
+    """Put TuxTalk's icon in the user's icon folders, for the launcher to
+    name: the icon name ("tuxtalk"), or None when it couldn't be installed.
+    Several sizes from one file, since KDE looks for one of its own sizes
+    and may not scale another."""
+    import shutil
+    if os.path.exists(user_icon_file()):
+        return "tuxtalk"
+    source = _icon_source()
+    if not source:
+        logger.warning("Could not find TuxTalk icon to install")
+        return None
+    icons_base = os.path.expanduser("~/.local/share/icons/hicolor")
+    sizes = ("256x256", "128x128", "64x64", "48x48", "32x32")
+    try:
+        for size in sizes:
+            icon_dir = os.path.join(icons_base, size, "apps")
+            os.makedirs(icon_dir, exist_ok=True)
+            shutil.copy2(source, os.path.join(icon_dir, "tuxtalk.png"))
+    except OSError as e:
+        logger.warning(f"Could not install TuxTalk icon: {e}")
+        return None
+    logger.info(f"Installed TuxTalk icon from {source} to {icons_base} ({len(sizes)} sizes)")
+    menu_cache.refresh_icon_caches(icons_base)
+    return "tuxtalk"
+
+
+# The launcher's right-click shortcuts (tuxtalk --open / --quit, control.py).
+# Plain GNOME has no tray, so without the extension these and opening TuxTalk
+# again (its menu window) are how people reach Preferences and the rest.
+# Same list as local.PhononLinux.App.desktop and aur/tuxtalk.desktop.
+DESKTOP_ACTIONS = (("Preferences", "Preferences", "--open preferences"),
+                   ("TranscribeFile", "Transcribe a File", "--open transcribe"),
+                   ("Help", "Help", "--open help"),
+                   ("Quit", "Quit TuxTalk", "--quit"))
+
+
+def desktop_actions(program: str) -> str:
+    """The Actions= line and [Desktop Action] groups for *program*."""
+    out = "Actions=" + "".join(f"{aid};" for aid, _, _ in DESKTOP_ACTIONS) + "\n"
+    for aid, name, args in DESKTOP_ACTIONS:
+        out += f"\n[Desktop Action {aid}]\nName={name}\nExec={program} {args}\n"
+    return out
+
+
+def point_at_running_appimage(running: str) -> None:
+    """Point launch-at-login and the menu launcher back at the AppImage
+    *running* when first-run setup's copy into ~/AppImages failed, so
+    neither starts a file that isn't there. Files only, so any thread."""
+    try:
+        from .autostart import enabled_entry_exists, set_autostart
+        # The file, not the setting: written by first run with the setting
+        # left unsaved (a read-only settings folder), it still points here.
+        # One the user turned off (a Hidden=true stub) stays off.
+        # The running file by name: the installed copy may be the older
+        # version the failed copy didn't replace.
+        if enabled_entry_exists():
+            if set_autostart(True, command=desktop_exec_program(running)):
+                logger.info("Launch at login points at the running AppImage instead")
+            else:
+                logger.warning("Could not repoint launch at login at the running AppImage")
+    except Exception as e:
+        logger.warning(f"Could not repoint launch at login: {e}")
+    ok, msg = create_desktop_launcher(running)
+    if ok:
+        logger.info("The menu launcher points at the running AppImage instead")
+    else:
+        logger.warning(f"Could not repoint the menu launcher: {msg}")
+
+
+def _launcher_program() -> Optional[str]:
+    """What the menu entry of this install starts: a source install's own
+    `tuxtalk` command (None when pip's script isn't there), else the AppImage
+    in ~/AppImages."""
+    if installation.get_install_type(pkg_query=lambda: "package") == "source":
+        return source_install.command()
+    return installation.APPIMAGE_PATH
+
+
+def create_desktop_launcher(exec_path: Optional[str] = None) -> Tuple[bool, str]:
+    """Write the Applications-menu launcher for this install's program: the
+    AppImage in ~/AppImages or a source install's `tuxtalk` command, or
+    *exec_path*: the running AppImage, when the copy there failed.
+    (success, message for the user)."""
+    try:
+        exec_path = exec_path or _launcher_program()
+        if not exec_path:
+            logger.info("No menu launcher written: this TuxTalk's tuxtalk command wasn't found")
+            return (False, "TuxTalk's tuxtalk command wasn't found.")
+        os.makedirs(os.path.dirname(DESKTOP_FILE_PATH), exist_ok=True)
+        icon_name = install_app_icon() or "audio-input-microphone"
+        version = __version__
+        logger.info(f"Desktop launcher Exec path: {exec_path}")
+        # Quoted where it must be: a download named "TuxTalk (1).AppImage"
+        # was cut at the space, and the menu entry opened nothing.
+        program = desktop_exec_program(exec_path)
+        desktop_content = f"""[Desktop Entry]
+Name=TuxTalk
+Comment=Hold a key, talk, and your words are typed for you (v{version})
+Exec={program}
+Icon={icon_name}
+Type=Application
+Categories=Utility;Accessibility;AudioVideo;
+Keywords=dictation;speech;voice;transcription;whisper;
+StartupNotify=true
+Terminal=false
+{desktop_actions(program)}"""
+        from .config import write_text_atomic
+        write_text_atomic(DESKTOP_FILE_PATH, desktop_content, keep_backup=False, mode=0o755)
+        # The menu cache (KDE's above all) is refreshed in the background, as
+        # add_launcher_actions does: it takes seconds, and Setup Complete waits.
+        threading.Thread(target=menu_cache.refresh_menu_cache, daemon=True).start()
+        logger.info(f"Desktop launcher created at {DESKTOP_FILE_PATH}")
+        return (True, "Desktop launcher created!\n\nTuxTalk is now in your Applications menu.")
+    except Exception as e:
+        logger.error(f"Failed to create desktop launcher: {e}")
+        return (False, f"Failed to create launcher: {e}")
+
+
+# Marks the hidden entry below, so first run still writes the real launcher.
+_HIDDEN_ENTRY_MARK = "X-TuxTalk-Hidden-Entry=true"
+
+def add_launcher_actions() -> bool:
+    """Give a menu launcher written before 0.16 the right-click shortcuts
+    (desktop_actions). Only a self-managed AppImage's own launcher is
+    touched, and only once (it then has an Actions= line). True if changed."""
+    try:
+        if installation.get_install_type(pkg_query=lambda: "package") != "appimage":
+            return False        # packages ship their launcher with the shortcuts
+        with open(DESKTOP_FILE_PATH) as f:
+            text = f.read()
+        lines = text.splitlines()
+        if _HIDDEN_ENTRY_MARK in text or any(l.startswith("Actions=") for l in lines):
+            return False
+        exec_line = next((l for l in lines if l.startswith("Exec=")), None)
+        if exec_line is None:
+            return False
+        # The program as the launcher runs it, without field codes like %U.
+        program = " ".join(w for w in exec_line[len("Exec="):].split(" ")
+                           if not (len(w) == 2 and w.startswith("%")))
+        # The new groups go at the end, so Actions= must land in the main group.
+        main_end = next((i for i, l in enumerate(lines[1:], 1) if l.startswith("[")), len(lines))
+        actions = desktop_actions(program).split("\n", 1)
+        new_lines = lines[:main_end] + [actions[0]] + lines[main_end:]
+        tmp = DESKTOP_FILE_PATH + ".tmp"
+        with open(tmp, "w") as f:
+            f.write("\n".join(new_lines).rstrip("\n") + "\n" + actions[1])
+        os.replace(tmp, DESKTOP_FILE_PATH)
+        threading.Thread(target=menu_cache.refresh_menu_cache, daemon=True).start()
+        logger.info("Added the right-click shortcuts to the menu launcher")
+        return True
+    except OSError:
+        return False            # no launcher yet
+    except Exception as e:
+        logger.warning(f"Could not add the launcher's right-click shortcuts: {e}")
+        return False
+
+
+def repair_stale_launcher() -> bool:
+    """Point the menu launcher at the AppImage in ~/AppImages once it's
+    there. When first run's copy failed, the launcher was pointed at the
+    AppImage running then (point_at_running_appimage), usually in
+    Downloads; a later update puts the copy in place, but the menu kept
+    starting the old download. Only a self-managed AppImage's own launcher,
+    and only one that starts another TuxTalk AppImage or a program that
+    isn't there (a source install's venv since deleted). True if rewritten."""
+    from . import config
+    from .autostart import program_missing, stale_appimage_target
+    if (config.DEV_MODE or not os.path.isfile(installation.APPIMAGE_PATH)
+            or installation.get_install_type(pkg_query=lambda: "package") != "appimage"):
+        return False
+    try:
+        with open(DESKTOP_FILE_PATH) as f:
+            text = f.read()
+    except OSError:
+        return False            # no launcher yet
+    exec_cmd = next((l[len("Exec="):] for l in text.splitlines() if l.startswith("Exec=")), "")
+    if _HIDDEN_ENTRY_MARK in text:
+        return False
+    target = stale_appimage_target(exec_cmd) or (exec_cmd if program_missing(exec_cmd)
+                                                  else None)
+    if target is None:
+        return False
+    ok, msg = create_desktop_launcher()
+    logger.info(f"Repaired the menu launcher: it started {target}" if ok
+                else f"Could not repair the menu launcher: {msg}")
+    return ok
+
+
+def desktop_launcher_exists() -> bool:
+    """True when the menu launcher exists (the hidden entry doesn't count)."""
+    try:
+        with open(DESKTOP_FILE_PATH) as f:
+            return _HIDDEN_ENTRY_MARK not in f.read()
+    except OSError:
+        return False
+
+
+def launcher_starts_nothing() -> bool:
+    """True when the menu launcher starts a program that isn't there: one
+    left by an AppImage since deleted, or by a venv since moved."""
+    from .autostart import program_missing
+    try:
+        with open(DESKTOP_FILE_PATH) as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return False            # no launcher
+    exec_cmd = next((l[len("Exec="):] for l in lines if l.startswith("Exec=")), "")
+    return _HIDDEN_ENTRY_MARK not in lines and program_missing(exec_cmd)
+
+
+def repair_source_launcher() -> bool:
+    """Point a source install's menu launcher at its own `tuxtalk` when the
+    program the launcher starts is gone (launcher_starts_nothing). One
+    starting a program that's there, another install the user keeps, stays.
+    True if rewritten."""
+    from . import config
+    if (config.DEV_MODE
+            or installation.get_install_type(pkg_query=lambda: "package") != "source"
+            or not launcher_starts_nothing()):
+        return False
+    ok, msg = create_desktop_launcher()
+    logger.info("Repaired the menu launcher: the program it started isn't there" if ok
+                else f"Could not repair the menu launcher: {msg}")
+    return ok
+
+
+def create_hidden_desktop_entry() -> bool:
+    """Write a hidden tuxtalk.desktop for a self-managed AppImage or a source
+    install that has no launcher yet. KDE and GNOME find a window's icon
+    through the .desktop file its program name names, so without this
+    first-run setup shows the desktop's generic icon. NoDisplay keeps it out
+    of the app menu, and the Ready screen replaces it with the real launcher.
+    Returns True if written."""
+    try:
+        install_type = installation.get_install_type(pkg_query=lambda: "package")
+        if install_type not in ("appimage", "source"):
+            return False        # other installs ship their own launcher
+        if os.path.lexists(DESKTOP_FILE_PATH):
+            return False
+        # Exec is required for a valid entry; the running program exists now.
+        if install_type == "source":
+            running = source_install.command()
+        else:
+            running = installation.get_running_appimage_path() or installation.APPIMAGE_PATH
+        if not running:
+            logger.info("No hidden desktop entry written: this TuxTalk's tuxtalk command "
+                        "wasn't found")
+            return False
+        icon_name = install_app_icon() or "audio-input-microphone"
+        os.makedirs(os.path.dirname(DESKTOP_FILE_PATH), exist_ok=True)
+        exec_path = desktop_exec_program(running)
+        tmp = DESKTOP_FILE_PATH + ".tmp"
+        with open(tmp, "w") as f:
+            f.write("[Desktop Entry]\n"
+                    "Name=TuxTalk\n"
+                    f"Exec={exec_path}\n"
+                    f"Icon={icon_name}\n"
+                    "Type=Application\n"
+                    "NoDisplay=true\n"
+                    "Terminal=false\n"
+                    f"{_HIDDEN_ENTRY_MARK}\n")
+        os.replace(tmp, DESKTOP_FILE_PATH)
+        # Plasma 5's menu cache doesn't rebuild by itself; this takes a moment.
+        threading.Thread(target=menu_cache.refresh_menu_cache, daemon=True).start()
+        logger.info("Hidden desktop entry written so setup windows show TuxTalk's icon")
+        return True
+    except Exception as e:
+        logger.warning(f"Could not write the hidden desktop entry: {e}")
+        return False

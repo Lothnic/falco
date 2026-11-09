@@ -1,0 +1,490 @@
+"""
+The clipboard, for TuxTalk's windows and for pasting dictations.
+
+copy_text is a deliberate Copy (the tray's Recent Dictations, Fix a Word).
+The rest is the dictation service's paste mode: dictations offered so that
+clipboard managers can skip them on Wayland (wl-copy --sensitive),
+ClipboardKeeper putting the user's clipboard back afterwards (on Wayland
+here, on X11 through x11_clipboard), and the primary selection voice editing
+reads.
+"""
+import functools
+import os
+import shutil
+import subprocess
+import threading
+import time
+
+from .logger import setup_logger
+
+logger = setup_logger(__name__)
+
+
+def copy_text(text):
+    """Copy *text*; returns True on success. Never raises.
+
+    wl-copy first: a click in a KDE/GNOME tray menu is handled by the
+    desktop's menu, not a GTK window of ours, and Wayland only lets a
+    focused window set the clipboard through GTK. wl-copy has its own way
+    in. GTK's clipboard covers X11.
+    """
+    try:
+        if os.environ.get("WAYLAND_DISPLAY") and shutil.which("wl-copy"):
+            subprocess.run(["wl-copy"], input=text.encode("utf-8"), timeout=5, check=True)
+        else:
+            import gi
+            gi.require_version('Gtk', '3.0')
+            from gi.repository import Gtk, Gdk
+            clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+            clipboard.set_text(text, -1)
+            clipboard.store()
+        return True
+    except Exception as e:
+        logger.error(f"Could not copy to the clipboard: {e}")
+        return False
+
+
+# --- Paste mode and the user's clipboard (see issue #7) -------------------------------
+# Paste mode puts each dictation on the clipboard and sends Ctrl+V, which
+# replaces what the user had copied, and clipboard managers such as KDE's
+# Klipper would save every dictation to disk. Dictations are therefore offered
+# with wl-copy --sensitive, the x-kde-passwordManagerHint=secret marker KeePassXC
+# uses, which Klipper and other clipboard managers skip. With the
+# restore_clipboard setting on, ClipboardKeeper also puts the old contents back
+# once the app has had time to read the paste, on Wayland (WaylandBoard) and
+# X11 (x11_clipboard.X11Board). It's off by default because some people
+# re-paste a dictation that landed in the wrong window.
+
+RESTORE_DELAY_S = 0.5           # apps read the clipboard asynchronously after Ctrl+V
+MAX_SAVED_BYTES = 20 * 1024 * 1024
+TEXT_TYPES = ("text/plain;charset=utf-8", "text/plain", "UTF8_STRING", "STRING", "TEXT")
+NOTHING = object()          # nothing saved (setting off, or the clipboard couldn't be read)
+EMPTY = object()            # the clipboard was empty before the paste
+_UNREADABLE = object()      # the primary selection couldn't be read: left as it is
+# KeePassXC and friends mark a copied password with this type; Klipper skips it.
+PASSWORD_HINT = "x-kde-passwordManagerHint"
+
+
+def _wl_copy_help():
+    result = subprocess.run(["wl-copy", "--help"], capture_output=True, text=True,
+                            errors="replace", timeout=3)
+    return result.stdout + result.stderr
+
+
+@functools.lru_cache(maxsize=1)
+def _sensitive_supported():
+    """wl-copy --sensitive arrived in wl-clipboard 2.3.0 (some distros back-port it)."""
+    try:
+        return "--sensitive" in _wl_copy_help()
+    except (OSError, subprocess.SubprocessError):   # no wl-copy: nothing to mark
+        return False
+
+
+def wl_copy_command():
+    """The wl-copy command for putting a dictation on the clipboard."""
+    return ["wl-copy", "--sensitive"] if _sensitive_supported() else ["wl-copy"]
+
+
+def _wl_paste_types():
+    """The types the clipboard offers now; [] when it is empty. errors="replace":
+    an app may name a type with any bytes, and only text types are looked for."""
+    result = subprocess.run(["wl-paste", "--list-types"], capture_output=True, text=True,
+                            errors="replace", timeout=1)
+    return [t for t in result.stdout.splitlines() if t.strip()] if result.returncode == 0 else []
+
+
+def _wl_paste(mime):
+    """The clipboard's contents as *mime*, in bytes. Raises OSError on failure."""
+    result = subprocess.run(["wl-paste", "--no-newline", "--type", mime],
+                            capture_output=True, timeout=1)
+    if result.returncode != 0:
+        raise OSError(f"wl-paste exited {result.returncode}")
+    return result.stdout
+
+
+def _wl_copy_bytes(data, mime, sensitive=False):
+    """Offer *data* as *mime*; *sensitive* keeps it out of clipboard managers,
+    as it came (a password copied from KeePassXC)."""
+    flag = ["--sensitive"] if sensitive and _sensitive_supported() else []
+    subprocess.run(["wl-copy", *flag, "--type", mime], input=data, timeout=3, check=True)
+
+
+def _wl_clear():
+    subprocess.run(["wl-copy", "--clear"], timeout=3, check=True)
+
+
+def _wl_copy_sensitive(text):
+    """Offer *text* marked sensitive, so clipboard managers don't keep it."""
+    subprocess.run(wl_copy_command(), input=text.encode("utf-8"), timeout=3, check=True)
+
+
+def _read_clipboard():
+    """(bytes, mime, sensitive) of what is on the clipboard now, EMPTY, or
+    NOTHING when it can't be read or is too big to keep.
+
+    It always goes back marked sensitive, for clipboard managers to skip:
+    the types and the contents come from two wl-paste runs, and a password
+    copied between them would be read with the types of what was there
+    before, without a password manager's mark. What the user copied is in
+    their clipboard manager's history from when they copied it."""
+    try:
+        types = _wl_paste_types()
+        if not types:
+            return EMPTY
+        mime = best_type(types)
+        data = _wl_paste(mime)
+        if len(data) > MAX_SAVED_BYTES:
+            logger.info("Clipboard contents too large to keep; not restoring them")
+            return NOTHING
+        return data, mime, True
+    except Exception as e:
+        logger.info(f"Couldn't read the clipboard to restore it later: {e}")
+        return NOTHING
+
+
+def _write_back(saved):
+    """Put a _read_clipboard() result back. True if it was. Never raises."""
+    if saved is NOTHING:
+        return False
+    try:
+        if saved is EMPTY:
+            _wl_clear()
+        else:
+            _wl_copy_bytes(*saved)
+        return True
+    except Exception as e:
+        logger.warning(f"Couldn't restore the clipboard: {e}")
+        return False
+
+
+# Offered only by a file manager's copy (GNOME Files, Dolphin), never a browser's link.
+FILE_MANAGER_TYPES = ("x-special/gnome-copied-files", "application/x-kde4-urilist",
+                      "application/x-kde-cutselection")
+
+
+def best_type(types):
+    """The type to save: copied files as files, plain text if offered, a
+    picture as PNG, otherwise the first one.
+
+    Only one type is kept on Wayland, because wl-copy offers only one: rich
+    text comes back as plain text, and files cut in a file manager come back
+    as copied (the cut marker is a second type). PNG, as Qt apps (Gwenview,
+    Okular) list their own application/x-qt-image first."""
+    if "text/uri-list" in types and any(t in types for t in FILE_MANAGER_TYPES):
+        return "text/uri-list"      # files copied in a file manager, not a link
+    for wanted in (*TEXT_TYPES, "image/png"):
+        if wanted in types:
+            return wanted
+    return types[0] if types else None
+
+
+def _timer(delay, fn):
+    """Run *fn* after *delay* seconds on a daemon thread; returns its cancel()."""
+    t = threading.Timer(delay, fn)
+    t.daemon = True
+    t.start()
+    return t.cancel
+
+
+class WaylandBoard:
+    """The Wayland clipboard, for ClipboardKeeper: wl-paste and wl-copy.
+    Whether the app has read a paste can't be seen, so the restore waits
+    RESTORE_DELAY_S."""
+
+    schedule = staticmethod(_timer)
+
+    @staticmethod
+    def wait_for_read(pasted_at, delay):
+        """Wait as schedule() would for a paste made at *pasted_at*."""
+        time.sleep(max(0.0, pasted_at + delay - time.monotonic()))
+
+    @staticmethod
+    def read():
+        """What it holds: (bytes, type, sensitive), EMPTY or NOTHING."""
+        return _read_clipboard()
+
+    @staticmethod
+    def put_back(saved, over):
+        """Put a read() result back, but only while the clipboard holds the
+        dictation *over*: something copied since, or a clipboard that can't
+        be read, is left alone. True if it was put back."""
+        try:
+            current = _wl_paste(best_type(_wl_paste_types()) or "text/plain")
+        except (OSError, subprocess.SubprocessError):
+            current = None
+        if current != over.encode("utf-8"):
+            logger.info("Clipboard changed after the paste; leaving it as it is")
+            return False
+        return _write_back(saved)
+
+
+class ClipboardKeeper:
+    """Puts the user's clipboard back after a paste, on *board* (WaylandBoard
+    or x11_clipboard.X11Board).
+
+    before_paste() saves it; after_paste(text) restores it RESTORE_DELAY_S
+    later (the board's schedule() may wait longer for the app to read the
+    paste), but only if the clipboard still holds the dictation, so something
+    the user copied in the meantime is left alone. A second paste before the
+    restore keeps the original saved copy, so the user gets back what they
+    copied, not the first dictation. Never raises: a clipboard that can't be
+    read is simply not restored.
+
+    before_primary() does the same for the primary selection, for a paste
+    that puts the dictation there too, so a middle-click still pastes what
+    the user last highlighted."""
+
+    def __init__(self, board=WaylandBoard, schedule=None, delay=RESTORE_DELAY_S):
+        self._board, self._delay = board, delay
+        self._schedule = schedule or board.schedule
+        self._lock = threading.Lock()
+        self._saved = NOTHING
+        self._primary = NOTHING     # the user's primary selection: text, or None if empty
+        self._last_text = None      # the dictation the pending restore waits on
+        self._cancel = None
+        self._generation = 0
+        self._pasted_at = float("-inf")
+
+    def before_paste(self):
+        """Save the user's clipboard before a dictation replaces it."""
+        with self._lock:
+            self._generation += 1
+            if self._cancel is not None:
+                # A restore is still pending. While the clipboard holds the
+                # last dictation, the copy saved before it is the user's;
+                # something they copied since is newer, and is kept instead.
+                self._cancel()
+                self._cancel = None
+                current = self._board.read()
+                if current is not NOTHING and not _holds(current, self._last_text):
+                    self._saved = current
+                return
+            self._saved = self._board.read()
+
+    def before_primary(self):
+        """Save the primary selection before the dictation goes on it too.
+        With a restore still pending, the copy already saved is kept while
+        the selection still holds the last dictation (or can't be read);
+        something highlighted since is newer, and is kept instead."""
+        with self._lock:
+            current = _primary_to_keep()
+            last = self._last_text
+            pending = self._primary is not NOTHING
+            if (pending and (current is _UNREADABLE
+                             or (last is not None and current in (last, last.rstrip("\n"))))):
+                return
+            self._primary = current
+
+    def after_paste(self, text):
+        """Schedule the restore, once the app has had time to read *text*."""
+        with self._lock:
+            if self._saved is NOTHING and self._primary is NOTHING:
+                return
+            generation, self._last_text = self._generation, text
+            self._pasted_at = time.monotonic()
+            self._cancel = self._schedule(self._delay, lambda: self._restore(text, generation))
+
+    def paste_failed(self):
+        """The dictation never reached the clipboard: an earlier one may
+        still be on it, whose restore before_paste() called off, so it is
+        scheduled again."""
+        with self._lock:
+            text = self._last_text
+        if text is not None:
+            self.after_paste(text)
+
+    def restore_now(self):
+        """Run a pending restore now, once the app has had its chance to
+        read the paste, as the board waits for it: for quitting, as the
+        restore's thread would end with the service."""
+        with self._lock:
+            cancel, self._cancel = self._cancel, None
+            text, generation, pasted_at = self._last_text, self._generation, self._pasted_at
+        if cancel is None:
+            return
+        cancel()
+        self._board.wait_for_read(pasted_at, self._delay)
+        self._restore(text, generation)
+
+    def _restore(self, text, generation):
+        """Put back what the clipboard held before the paste, but only while it
+        still holds the dictation: a copy the user made meanwhile stays."""
+        # Under the lock throughout: a paste starting meanwhile waits (the
+        # clipboard's reads and writes are time-limited), so it can neither save
+        # this dictation as the user's copy nor have its own dictation
+        # overwritten by this restore before the app reads it.
+        with self._lock:
+            if generation != self._generation:
+                return          # a newer paste took over; it will restore
+            saved, self._saved, self._cancel = self._saved, NOTHING, None
+            primary, self._primary = self._primary, NOTHING
+            if primary not in (NOTHING, _UNREADABLE):
+                _restore_primary(primary, text)
+            if saved is not NOTHING and self._board.put_back(saved, text):
+                logger.info("Clipboard restored after paste")
+
+
+def _holds(saved, text):
+    """Whether a _read_clipboard() result is the dictation *text*."""
+    return isinstance(saved, tuple) and text is not None and saved[0] == text.encode("utf-8")
+
+
+def _wl_copy_primary(text, timeout=3):
+    """Put *text* on the primary selection, marked sensitive as dictations
+    are, or clear it when *text* is None. Raises OSError when wl-copy
+    failed (a desktop without a primary selection), or SubprocessError."""
+    if text is None:
+        command, data = ["wl-copy", "--primary", "--clear"], None
+    else:
+        command, data = wl_copy_command() + ["--primary"], text.encode("utf-8")
+    result = subprocess.run(command, input=data, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL, timeout=timeout)
+    if result.returncode != 0:
+        raise OSError(f"wl-copy exited {result.returncode}")
+
+
+def copy_to_primary(text: str, timeout: float) -> bool:
+    """Put the dictation *text* on the primary selection as well, within
+    *timeout* seconds. True once wl-copy has handed it to the compositor;
+    False if the desktop has no primary selection or wl-copy failed."""
+    try:
+        _wl_copy_primary(text, timeout)
+    except (OSError, subprocess.SubprocessError) as e:
+        logger.info(f"Could not set the primary selection: {e}")
+        return False
+    return True
+
+
+def _restore_primary(saved, text):
+    """Put the user's primary selection back (clear it if *saved* is None),
+    unless something other than the dictation *text* is on it now."""
+    if read_primary() not in (text, text.rstrip("\n")):
+        logger.info("Primary selection changed after the paste; leaving it as it is")
+        return
+    try:
+        _wl_copy_primary(saved)
+        logger.info("Primary selection restored after paste")
+    except Exception as e:
+        logger.warning(f"Couldn't restore the primary selection: {e}")
+
+
+# --- Voice editing: the text selected in the focused app -----------------------------
+
+COPY_WAIT_S = 0.6               # how long an app may take to put its selection on the clipboard
+_COPY_POLL_S = 0.05
+
+
+def _primary_to_keep():
+    """The primary selection (the highlighted text) as text, None when
+    nothing is highlighted, or _UNREADABLE when wl-paste failed: a selection
+    that couldn't be read mustn't be cleared as if it were empty."""
+    try:
+        result = subprocess.run(["wl-paste", "--primary", "--no-newline"],
+                                capture_output=True, timeout=1)
+    except (OSError, subprocess.SubprocessError) as e:
+        logger.info(f"Couldn't read the primary selection: {e}")
+        return _UNREADABLE
+    if result.returncode == 0:
+        return result.stdout.decode("utf-8", "replace")
+    # wl-clipboard 2.2 says "Nothing is copied", 2.0 and 2.1 "No selection".
+    if b"Nothing is copied" in result.stderr or b"No selection" in result.stderr:
+        return None
+    logger.info(f"Couldn't read the primary selection (wl-paste exit {result.returncode})")
+    return _UNREADABLE
+
+
+def read_primary():
+    """The primary selection (the highlighted text) as text, or None."""
+    text = _primary_to_keep()
+    return None if text is _UNREADABLE else text
+
+
+def _read_text():
+    """The clipboard as text, or None when it holds no text."""
+    try:
+        types = _wl_paste_types()
+        mime = next((t for t in TEXT_TYPES if t in types), None)
+        return _wl_paste(mime).decode("utf-8", "replace") if mime else None
+    except (OSError, subprocess.SubprocessError):
+        return None     # callers leave a clipboard they can't read alone
+
+
+class ClipboardUnavailable(Exception):
+    """The clipboard couldn't be used to read the selection (wl-copy failed,
+    or is missing). Not the same as nothing being selected."""
+
+
+def copy_selection(send_copy, wait=COPY_WAIT_S, sleep=None):
+    """The text selected in the focused app, and put_back() to restore what
+    the user had on the clipboard. The text is None when nothing is selected.
+
+    The app copies its own selection: *send_copy* presses Ctrl+C (Ctrl+Shift+C
+    in a terminal) and returns whether the keystroke went out. A unique marker
+    goes on the clipboard first: an app with nothing selected leaves the
+    clipboard alone, so the marker still being there means no selection.
+    With nothing selected, the clipboard is put back before returning.
+    Raises ClipboardUnavailable when the marker can't be put on the clipboard."""
+    import secrets
+    sleep = sleep or time.sleep
+    saved = _read_clipboard()
+    marker = f"tuxtalk-selection-probe-{secrets.token_hex(8)}"
+    text = None
+
+    def put_back(also=()):
+        """Restore the user's clipboard, unless something newer is on it:
+        only the marker, the selection or *also* (a pasted rewrite, or what
+        the app copied instead of a selection) may be replaced, or nothing at
+        all. A password goes back marked sensitive, as it came."""
+        current = _read_text()
+        if current is None:
+            # No text: empty is safe to fill, but an image the user just
+            # copied, or a clipboard that can't be read, is left alone.
+            try:
+                replaceable = not _wl_paste_types()
+            except (OSError, subprocess.SubprocessError):
+                replaceable = False
+        else:
+            replaceable = current in {s for s in (marker, text, *also) if s is not None}
+        if not replaceable:
+            logger.info("Clipboard changed during the voice edit; leaving it as it is")
+            return
+        if saved is NOTHING:
+            # The user's clipboard couldn't be kept; at least the probe
+            # marker mustn't be what their next Ctrl+V pastes.
+            if current == marker:
+                try:
+                    _wl_clear()
+                except Exception as e:
+                    logger.warning(f"Couldn't clear the clipboard: {e}")
+            return
+        _write_back(saved)
+
+    try:
+        _wl_copy_sensitive(marker)
+    except Exception as e:
+        logger.warning(f"Couldn't use the clipboard to read the selection: {e}")
+        raise ClipboardUnavailable(str(e)) from e
+    copied = None
+    if send_copy():
+        for _ in range(int(wait / _COPY_POLL_S) + 1):
+            current = _read_text()
+            if current is not None and current != marker:
+                copied = current
+                break
+            sleep(_COPY_POLL_S)
+    # Code editors (VS Code, JetBrains, Sublime) copy the whole current line,
+    # newline and all, when nothing is selected. A real selection is also the
+    # highlighted text (the primary selection); an app without one gets the
+    # benefit of the doubt.
+    primary = read_primary() if copied and copied.endswith("\n") else None
+    rejected = copied
+    if primary and primary != copied:
+        logger.info("Ctrl+C copied a whole line with nothing selected; not a selection")
+        copied = None
+    if not copied:
+        # What the app copied instead of a selection (that whole line, or
+        # nothing) is on the clipboard now, and may be replaced.
+        put_back(also=(rejected,))
+        return None, put_back
+    text = copied
+    return text, put_back

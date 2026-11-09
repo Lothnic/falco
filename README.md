@@ -1,5 +1,7 @@
 # Phonon
 
+> **Community Linux app:** See [`linux/`](linux/README.md) for the TuxTalk-based Phonon Linux package, installation steps, and its separate MIT license. The original Phonon code in the rest of this repository remains GPL-3.0.
+
 Open-source voice typing. Fast. Local. Yours.
 macOS is the shipped platform. Windows is in beta; Linux is a preview.
 
