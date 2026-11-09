@@ -305,6 +305,14 @@ def _make_indicator(cfg) -> None:
     """The recording indicator, with its spectrum for the bars style."""
     try:
         recording.indicator = RecordingIndicator(**settings_in(cfg))
+        # Rune is opt-in while its cross-desktop behaviour is being tested.
+        binary = os.environ.get("PHONON_RUNE_OVERLAY")
+        if binary:
+            try:
+                from .rune_indicator import RuneIndicator
+                recording.indicator = RuneIndicator(recording.indicator, binary)
+            except (OSError, ValueError) as exc:
+                logger.warning(f"Rune overlay unavailable; using GTK: {exc}")
         # Spectrum processor for the bars style; recording.feed_indicator uses it.
         from .indicator_dsp import SpectrumProcessor
         recording.spectrum_processor = SpectrumProcessor(bins=20)

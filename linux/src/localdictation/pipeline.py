@@ -593,9 +593,14 @@ def _finish(message, work) -> None:
     message.finishing = True
 
     def run():
+        indicator = recording.indicator
+        begin = getattr(indicator, "begin_processing", None)
+        token = begin() if begin else None
         try:
             work()
         finally:
+            if begin:
+                indicator.end_processing(token)
             message.finishing = False
     dictation_worker.submit(run)
 

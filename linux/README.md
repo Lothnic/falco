@@ -25,3 +25,25 @@ Models and inference engines are downloaded separately and have their own licens
 ## Status
 
 This is an early source package. Its transcription and cleanup components have been tested on Ubuntu, but the packaged application still needs broader end-to-end testing across desktop environments. The experimental type-at-pause and voice-editing features do not provide the full Phonon refinement pipeline.
+
+## Experimental Rune recording overlay
+
+The existing GTK recording indicator remains the default. The optional Rune
+sidecar shows a sound-responsive **Listening** indicator and a **Finishing…**
+state while a dictation is processed. If the sidecar cannot start or cannot
+show an overlay, the existing GTK recording indicator remains available.
+
+To try it, install Rust 1.99.1 or newer and build the pinned Rune revision:
+
+```sh
+cargo build --release --locked --manifest-path linux/rune-overlay/Cargo.toml
+PHONON_RUNE_OVERLAY="$PWD/linux/rune-overlay/target/release/phonon-overlay" phonon-linux
+```
+
+Run these commands from the repository root, after installing the app with
+`linux/install.sh`. Quit any already-running copy first. The first build
+fetches Rune and its Rust dependencies. The overlay uses XWayland when a
+`DISPLAY` is present, which keeps it non-activating on GNOME Wayland. It is
+currently anchored at the bottom of the primary display; the GTK position,
+style, and size settings do not apply to Rune. This is an experimental opt-in,
+not yet a replacement for the established indicator on every desktop.

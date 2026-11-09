@@ -1,0 +1,10 @@
+[package]
+name = "phonon-overlay"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace]
+
+[dependencies]
+rune = { git = "https://github.com/anomalyco/rune", rev = "565de6bb8a3449edd3dd6caa0c351bee11697964", default-features = false }
