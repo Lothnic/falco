@@ -28,19 +28,42 @@ if command -v uv >/dev/null 2>&1; then
 else
     "$release_dir/.venv/bin/python" -m pip install "$release_dir"
 fi
+mkdir -p "$release_dir/bin"
+for binary in phonon-overlay phonon-window; do
+    if [[ -x "$source_dir/rune-overlay/target/release/$binary" ]]; then
+        install -m 755 "$source_dir/rune-overlay/target/release/$binary" "$release_dir/bin/$binary"
+    fi
+done
 cat > "$release_dir/run.sh" <<RUNNER
 #!/usr/bin/env bash
 export DEV_MODE=1
+if [[ -x "$release_dir/bin/phonon-overlay" ]]; then
+    export PHONON_RUNE_OVERLAY="\${PHONON_RUNE_OVERLAY:-$release_dir/bin/phonon-overlay}"
+fi
 exec "$release_dir/.venv/bin/python" -m localdictation.tray "\$@"
 RUNNER
 chmod 755 "$release_dir/run.sh"
-ln -sfn "$release_dir/run.sh" "$bin_dir/phonon-linux"
+launcher="$release_dir/run.sh"
+if [[ -x "$release_dir/bin/phonon-window" ]]; then
+    cat > "$release_dir/run-ui.sh" <<RUNNER
+#!/usr/bin/env bash
+if ! "$release_dir/.venv/bin/python" -c 'import dbus,sys; sys.exit(0 if dbus.SessionBus().name_has_owner("local.PhononLinux.App") else 1)' 2>/dev/null; then
+    "$release_dir/run.sh" </dev/null >/dev/null 2>&1 &
+fi
+export PHONON_PYTHON="$release_dir/.venv/bin/python"
+export PHONON_BRIDGE_MODULE=localdictation.ui_bridge
+exec "$release_dir/bin/phonon-window" "\$@"
+RUNNER
+    chmod 755 "$release_dir/run-ui.sh"
+    launcher="$release_dir/run-ui.sh"
+fi
+ln -sfn "$launcher" "$bin_dir/phonon-linux"
 cat > "$desktop_dir/phonon-linux-community.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
 Name=Phonon Linux
 Comment=Local voice dictation and transcript cleanup
-Exec="$release_dir/run.sh"
+Exec="$launcher"
 Icon=audio-input-microphone
 Terminal=false
 Categories=Utility;Accessibility;

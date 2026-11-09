@@ -7,4 +7,6 @@ license = "MIT"
 [workspace]
 
 [dependencies]
-rune = { git = "https://github.com/anomalyco/rune", rev = "565de6bb8a3449edd3dd6caa0c351bee11697964", default-features = false }
+rune = { git = "https://github.com/anomalyco/rune", rev = "565de6bb8a3449edd3dd6caa0c351bee11697964", default-features = false, features = ["accessibility"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
