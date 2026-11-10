@@ -1,13 +1,13 @@
-"""What TuxTalk says when a dictation didn't reach the window, by how its
+"""What Falco says when a dictation didn't reach the window, by how its
 delivery ended (delivery.inject_text's outcome): a title for the notification
 and the sentence under it, and the label a password field gets over the
 window.
 """
 from .modifier_hotkeys import HELD_LIMIT_S
 
-PASSWORD_FIELD_LABEL = "TuxTalk doesn't type into password fields"
+PASSWORD_FIELD_LABEL = "Falco doesn't type into password fields"
 PASSWORD_FIELD_TITLE = "Not typed into a password field"
-PASSWORD_FIELD_NOTICE = ("TuxTalk doesn't type into password fields, so it stopped there. "
+PASSWORD_FIELD_NOTICE = ("Falco doesn't type into password fields, so it stopped there. "
                          "Type the password on the keyboard.")
 
 # The text is in Recent Dictations by then (it's saved before injection
@@ -20,19 +20,19 @@ TITLES = {
     "moved": "Not typed: the window changed while waiting",
 }
 NOTICES = {
-    "failed": "It's saved in Recent Dictations in the TuxTalk menu: click it to copy, "
+    "failed": "It's saved in Recent Dictations in the Falco menu: click it to copy, "
               "then paste with Ctrl+V.",
-    "partial": "The whole text is saved in Recent Dictations in the TuxTalk menu: click "
+    "partial": "The whole text is saved in Recent Dictations in the Falco menu: click "
                "it to copy, then paste with Ctrl+V.",
     # Said its own way, with a label over the window (notices.password_field_refused).
     "password_field": PASSWORD_FIELD_NOTICE,
     "key_held": f"Right Ctrl or Right Alt read as held down for "
                 f"{HELD_LIMIT_S:g} seconds, and the text would have gone "
-                "in as shortcuts. It's saved in Recent Dictations in the TuxTalk menu: "
+                "in as shortcuts. It's saved in Recent Dictations in the Falco menu: "
                 "click it to copy, then paste with Ctrl+V.",
-    "moved": "Another window or a password field took the focus while TuxTalk waited for "
+    "moved": "Another window or a password field took the focus while Falco waited for "
              "Right Ctrl or Right Alt to come up. The text is saved in Recent Dictations "
-             "in the TuxTalk menu: click it to copy, then paste with Ctrl+V.",
+             "in the Falco menu: click it to copy, then paste with Ctrl+V.",
 }
 
 

@@ -81,13 +81,13 @@ def _no_hotkey_tips(is_flatpak, keys_where):
             f"• Open {keys_where}\n  and make sure a key is set for both "
             "<b>Hold to talk</b> and <b>Toggle dictation</b>.\n"
             "• If the assign prompt never appeared on first run, choose Restart Service in the\n"
-            "  TuxTalk menu and it will ask again.")
+            "  Falco menu and it will ask again.")
     return (
         "• Open <b>Preferences → Advanced → System check</b>. If Typing setup says something\n"
-        "  needs fixing, click its button. You'll be asked for your password once. TuxTalk's\n"
+        "  needs fixing, click its button. You'll be asked for your password once. Falco's\n"
         "  hotkey helper then reads the dictation keys, and nothing else, with no restart\n"
         "  needed.\n"
-        "• On a system without systemd the helper can't be used, and TuxTalk joins you to\n"
+        "• On a system without systemd the helper can't be used, and Falco joins you to\n"
         "  the \"input\" group instead. Then the computer needs a restart: logging out is\n"
         "  often not enough. Typing setup says when this applies.\n"
         "• Another app may use the same key: pick another in Preferences → General and try\n"
@@ -105,8 +105,8 @@ def _ctrl_space_line(keys):
     return (
         "\n  • With <b>Left Ctrl+Space</b> as your key, Ctrl+Space (and Right Ctrl+Space)\n"
         "    doesn't reach your apps while dictation is on, so code completion on it waits\n"
-        "    until you turn dictation off. On a desktop where TuxTalk can't hold keys back\n"
-        "    (anything but KDE, GNOME with the TuxTalk extension, COSMIC and X11), the app\n"
+        "    until you turn dictation off. On a desktop where Falco can't hold keys back\n"
+        "    (anything but KDE, GNOME with the Falco extension, COSMIC and X11), the app\n"
         "    gets Ctrl+Space as well.")
 
 
@@ -146,11 +146,11 @@ def _values():
         shortcut_line = (
             "\n\n### Your own shortcut\nA desktop shortcut or script can run "
             f"<tt>{GLib.markup_escape_text(shortcut_command())}</tt> (or --start, --stop). "
-            "It starts TuxTalk if needed and waits until the speech model is loaded.")
+            "It starts Falco if needed and waits until the speech model is loaded.")
 
     if is_flatpak:
         typing_para = (
-            "TuxTalk types straight into the focused app through your desktop's secure\n"
+            "Falco types straight into the focused app through your desktop's secure\n"
             "    input portal (libei): there's no typing setup to configure, and clipboard\n"
             "    paste isn't used.")
     else:
@@ -166,7 +166,7 @@ def _values():
     if is_flatpak and "KDE" in os.environ.get("XDG_CURRENT_DESKTOP", ""):
         kde_notice = (
             "\n\n### Turning off KDE's per-dictation popup\n"
-            "KDE shows a \"Remote control session started\" popup each time TuxTalk "
+            "KDE shows a \"Remote control session started\" popup each time Falco "
             "types. To stop it, use the <b>🔔</b> button in <b>Preferences → General</b>, "
             "or: click the sliders icon on that popup → under <b>Started Remote "
             "Desktop</b> uncheck <b>Show a message in a pop-up</b> → Apply.")
@@ -179,7 +179,7 @@ def _values():
             "    \"Check for Updates\" points you at the same command.")
     else:
         update_block = (
-            "Updating matches how you installed TuxTalk:\n"
+            "Updating matches how you installed Falco:\n"
             "   – <b>.deb / .rpm:</b> click \"Download &amp; Install\". It downloads the new\n"
             "     package and installs it through your system package manager (you'll be\n"
             "     asked for your password once), then offers to restart.\n"

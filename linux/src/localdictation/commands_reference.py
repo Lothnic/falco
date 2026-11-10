@@ -43,7 +43,7 @@ class Command(NamedTuple):
 
 class Section(NamedTuple):
     """A heading's commands, shown in *group* (a tab of the Voice Commands
-    window, a run of cards in Help); *labs* names the TuxTalk Labs tickbox
+    window, a run of cards in Help); *labs* names the Falco Labs tickbox
     they need, if any."""
     title: str
     group: str
@@ -137,14 +137,14 @@ SECTIONS = (
     Section("Clear the Whole Box", FIXING, commands=(
         Command(("delete everything", "delete all", "clear everything", "clear all",
                  "undo everything", "undo all"),
-                "empty the whole box, including text TuxTalk didn't type; in a terminal, "
+                "empty the whole box, including text Falco didn't type; in a terminal, "
                 "the line you're typing", "undo",
                 "It presses Ctrl+A then Backspace; in a terminal, Ctrl+E then Ctrl+U"),
     )),
     Section("Fixing a Word", FIXING, commands=(
         Command(("fix that word", "fix that", "fix a word", "fix the word", "fix this word",
                  "fix the last word"),
-                "open Fix a Word on what you just said, to teach TuxTalk the right spelling "
+                "open Fix a Word on what you just said, to teach Falco the right spelling "
                 "for next time", "fix"),
     )),
     Section("Changing Your Mind", FIXING,

@@ -15,7 +15,7 @@ logger = setup_logger(__name__)
 
 OLD_FLATPAK_NOTICE_TITLE = "Stopped the old TalkType Flatpak"
 OLD_FLATPAK_NOTICE_BODY = (
-    "It was running next to TuxTalk, its new name, so everything you said "
+    "It was running next to Falco, its new name, so everything you said "
     "would be typed twice. You can uninstall it from your software center, or "
     "with: flatpak uninstall local.PhononLinux.App")
 
@@ -63,12 +63,12 @@ def _show_update_complete_once():
     show_message(None, Gtk.MessageType.INFO, "Update Complete!",
                  f"TuxTalk has been updated to <b>v{__version__}</b>\n\n"
                  "The update was installed automatically and "
-                 "TuxTalk has restarted with the new version.",
+                 "Falco has restarted with the new version.",
                  keep_above=True, markup=True)
 
 
 def _show_rename_notice_once():
-    """'TalkType is now TuxTalk', once, after this start converted an old
+    """'TalkType is now Falco', once, after this start converted an old
     TalkType install (rename_migration leaves a marker for it). It is cleared
     only once the message has been seen, so quitting first just shows it on
     the next start."""
@@ -76,10 +76,10 @@ def _show_rename_notice_once():
     folder = os.path.dirname(config.CONFIG_PATH)
     if not rename_migration.notice_pending(folder):
         return
-    show_message(None, Gtk.MessageType.INFO, "TalkType is now TuxTalk", "\n\n".join((
+    show_message(None, Gtk.MessageType.INFO, "TalkType is now Falco", "\n\n".join((
         "Same app, new name. Your settings, models, snippets and stats all came "
-        "across. Look for TuxTalk in your app menu from now on.",
+        "across. Look for Falco in your app menu from now on.",
         "Why the change: another company owns the name TalkType for dictation "
         "software.")), [("Got it", Gtk.ResponseType.OK)], keep_above=True)
     rename_migration.notice_shown(folder)
-    logger.info("Rename to TuxTalk: showed the one-time notice")
+    logger.info("Rename to Falco: showed the one-time notice")

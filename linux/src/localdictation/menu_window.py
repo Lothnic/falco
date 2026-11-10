@@ -1,8 +1,8 @@
-"""Phonon Linux's menu as a window: everything the tray menu has.
+"""Falco's menu as a window: everything the tray menu has.
 
-Opening Phonon Linux from the app list while it already runs shows this window.
+Opening Falco from the app list while it already runs shows this window.
 On plain GNOME (Fedora, Silverblue, Debian...) there is no system tray, so
-without Phonon Linux's GNOME extension this window is the only way to reach
+without Falco's GNOME extension this window is the only way to reach
 Preferences, Transcribe a File and the rest. On other desktops it's a
 convenience: the same menu, wherever the tray icon is.
 
@@ -26,7 +26,7 @@ from .service_launcher import KILL_WAIT_S, QUIT_WAIT_S  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-WINDOW_TITLE = "Phonon Linux"
+WINDOW_TITLE = "Falco"
 
 # How long the switch keeps what was just asked while the service gets
 # there: a stop types what's left first and is waited for up to this long
@@ -38,10 +38,10 @@ SWITCH_SETTLE_S = QUIT_WAIT_S + KILL_WAIT_S
 def no_tray_note(extension_installed):
     """The note at the bottom when the desktop shows no tray icons."""
     if extension_installed:
-        return ("Phonon Linux's GNOME extension is installed. After you log out and "
-                "back in, Phonon Linux's menu is in the top bar.")
-    return ("This desktop has no system tray, so this window is Phonon Linux's menu. "
-            "Open Phonon Linux from your apps to bring it back.")
+        return ("Falco's GNOME extension is installed. After you log out and "
+                "back in, Falco's menu is in the top bar.")
+    return ("This desktop has no system tray, so this window is Falco's menu. "
+            "Open Falco from your apps to bring it back.")
 
 
 class MenuWindow:
@@ -103,11 +103,11 @@ class MenuWindow:
             ("Voice Commands...", t.show_voice_commands),
             ("Your Stats...", lambda b: t.open_preferences(b, "stats")),
             ("Help...", t.show_help),
-            ("About Phonon Linux...", t.show_about_dialog),
+            ("About Falco...", t.show_about_dialog),
             ("Check for Updates...", t.check_for_updates_clicked),
             ("Restart Service", t.restart_service),
             None,
-            ("Quit Phonon Linux", t.quit_app),
+            ("Quit Falco", t.quit_app),
         ]:
             if item is None:
                 sep = Gtk.Separator()
@@ -126,9 +126,9 @@ class MenuWindow:
             note.get_style_context().add_class("dim-label")
             box.pack_start(note, False, False, 0)
             if offer_extension and not extension_installed:
-                add = Gtk.Button(label="Add Phonon Linux to the Top Bar...")
+                add = Gtk.Button(label="Add Falco to the Top Bar...")
                 add.set_tooltip_text("Opens Preferences → Advanced, where "
-                                     "Install Extension puts Phonon Linux's menu in GNOME's top bar")
+                                     "Install Extension puts Falco's menu in GNOME's top bar")
                 add.set_halign(Gtk.Align.START)
                 add.set_margin_top(6)
                 add.connect("clicked", self._run, lambda b: t.open_preferences(b, "advanced"))

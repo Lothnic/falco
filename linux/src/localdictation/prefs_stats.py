@@ -122,7 +122,7 @@ class StatsTab(Tab):
         privacy = Gtk.Label(xalign=0)
         privacy.set_line_wrap(True)
         privacy.set_text("Only these numbers are kept, on this computer. "
-                         "TuxTalk never saves what you said.")
+                         "Falco never saves what you said.")
         vbox.pack_start(privacy, False, False, 0)
 
     def refresh(self):

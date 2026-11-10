@@ -51,7 +51,7 @@ def _ready_tips(is_flatpak):
     # Onboarding turns on launch at login (appimage_copy._start_at_login) and
     # records it only once its file is written: say so, and where to turn it off.
     if getattr(cfg, "launch_at_login", False):
-        tips.append("🔁 TuxTalk will start automatically when you log in "
+        tips.append("🔁 Falco will start automatically when you log in "
                     "(turn this off in Preferences → General)")
     return tips
 
@@ -186,7 +186,7 @@ def _confirm_and_restart(dialog, button):
         show_message(dialog,
                      Gtk.MessageType.WARNING,
                      "Couldn't finish setup",
-                     "TuxTalk couldn't save its setup state, so it won't restart "
+                     "Falco couldn't save its setup state, so it won't restart "
                      "automatically. Please restart your computer yourself in a "
                      "moment to finish.")
         return
@@ -207,7 +207,7 @@ def _button(label, width, on_click, main=False):
 def _buttons(dialog, needs_restart, model_ready=True):
     """(box, main button). When a restart is owed, the choice IS restart now
     or later: dictation won't work until the reboot, so "Start Using
-    TuxTalk!" would mislead. Otherwise start dictating, or adjust settings."""
+    Falco!" would mislead. Otherwise start dictating, or adjust settings."""
     button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
     button_box.set_halign(Gtk.Align.CENTER)
     button_box.set_margin_top(12)
@@ -231,7 +231,7 @@ def _buttons(dialog, needs_restart, model_ready=True):
         left.set_tooltip_text(
             "Adjust models, hotkeys, punctuation, the recording indicator and more")
         # Without a model there's nothing to start using yet.
-        main = _button("Start Using TuxTalk!" if model_ready else "Continue", 180, close,
+        main = _button("Start Using Falco!" if model_ready else "Continue", 180, close,
                        main=True)
     button_box.pack_start(left, False, False, 0)
     button_box.pack_start(main, False, False, 0)
@@ -280,7 +280,7 @@ def show_setup_complete_dialog(appimage_installed=False, launcher_created=False,
             "ready to use".
     """
     from .ui_style import fit_dialog_to_screen
-    dialog = Gtk.Dialog(title="TuxTalk - Ready!" if model_ready else "TuxTalk - Setup Complete")
+    dialog = Gtk.Dialog(title="Falco - Ready!" if model_ready else "Falco - Setup Complete")
     dialog.set_border_width(0)
     fit_dialog_to_screen(dialog, _WIDTH, -1)  # auto-height, resizable; capped when realized
     dialog.set_position(Gtk.WindowPosition.CENTER)
@@ -291,7 +291,7 @@ def show_setup_complete_dialog(appimage_installed=False, launcher_created=False,
 
     vbox.pack_start(_centered('<span size="x-large"><b>Setup Complete!</b></span>'),
                     False, False, 0)
-    vbox.pack_start(_centered('TuxTalk is ready to use.' if model_ready else
+    vbox.pack_start(_centered('Falco is ready to use.' if model_ready else
                               '<span color="#FF9800"><b>The speech model isn\'t downloaded '
                               'yet.</b>\nTuxTalk asks to download it when it starts.</span>',
                               top=4), False, False, 0)

@@ -92,7 +92,7 @@ def _hotkey_test_notice(service_can_read):
     from localdictation import uinput_helper
     from localdictation import secure_input
     if uinput_helper.input_group_pending_restart():
-        return ("TuxTalk can't read the keyboard yet. These keys will work "
+        return ("Falco can't read the keyboard yet. These keys will work "
                 "once you restart your computer to finish the typing setup.")
     if secure_input.can_install()[0]:
         # The hotkey helper: its hotkeys work as soon as it's installed.
@@ -107,7 +107,7 @@ def _reading_notice(keyboards, keys):
     its dictation *keys*: the notice is None when it needs none, else it
     says why keys show as seen, not active: nothing to read, only a hotkey
     helper that says it reads no keyboard (one before 1.12 doesn't say), or
-    one too old for this TuxTalk or these keys (secure_input.needs_update).
+    one too old for this Falco or these keys (secure_input.needs_update).
     *gone_once_heard* when it only may apply (a Logitech mouse may be all
     it's about): a key heard through the reader shows the keyboard is read."""
     if not keyboards:

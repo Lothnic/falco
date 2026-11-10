@@ -12,7 +12,7 @@ from gi.repository import Atk
 
 from . import cards, help_outline, ui_style
 
-LABS_TOOLTIP = "A TuxTalk Labs feature: Preferences → Advanced → TuxTalk Labs"
+LABS_TOOLTIP = "A Falco Labs feature: Preferences → Advanced → Falco Labs"
 
 # Each tab's colour (a tt-<look> class in prefs_style.css, the Commands
 # groups' colours) and the icon on its cards. Mistakes shares Fixing's.

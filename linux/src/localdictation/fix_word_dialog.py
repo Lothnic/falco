@@ -1,5 +1,5 @@
 """
-"Fix a Word" window: teach TuxTalk a word from a recent dictation.
+"Fix a Word" window: teach Falco a word from a recent dictation.
 
 Opened from Recent Dictations in the tray menu (or the GNOME panel menu via
 D-Bus). The user clicks the misheard word(s), types the right spelling, and
@@ -52,8 +52,8 @@ def show_fix_word_dialog(index=0, copy_text=None):
         show_message(None,
                      Gtk.MessageType.INFO,
                      "No recent dictations to fix yet",
-                     "Dictate something first. Then, if TuxTalk gets a word wrong, "
-                     "choose Fix a Word in the TuxTalk menu to teach it.",
+                     "Dictate something first. Then, if Falco gets a word wrong, "
+                     "choose Fix a Word in the Falco menu to teach it.",
                      keep_above=True)
         return
     _active_dialog = _FixWordDialog(entries, index, copy_text)
@@ -289,7 +289,7 @@ class _FixWordDialog:
         if phrase and vocabulary.is_risky(phrase):
             warnings.append(
                 f"“{phrase}” is a common word. Saving this changes it every "
-                "time you say it, not just when TuxTalk mishears you.")
+                "time you say it, not just when Falco mishears you.")
         if phrase:
             try:
                 previous = vocabulary.existing_fix(phrase)
@@ -353,7 +353,7 @@ class _FixWordDialog:
             self.window, Gtk.MessageType.WARNING,
             f"Always change “{phrase}” to “{replacement}”?",
             f"“{phrase}” is a common word, so this will change it in every "
-            "dictation, even when TuxTalk heard you right.",
+            "dictation, even when Falco heard you right.",
             [("Cancel", Gtk.ResponseType.CANCEL), ("Fix it anyway", Gtk.ResponseType.OK)])
         return answer == Gtk.ResponseType.OK
 
@@ -381,7 +381,7 @@ def _as_tuples(saved):
 
 
 def fix_in_text(typed, fix, window, where=None):
-    """Swap just the picked words in what TuxTalk *typed*, in the focused
+    """Swap just the picked words in what Falco *typed*, in the focused
     app. *fix* is (start, end, replacement), offsets in the typed text
     without its outer spaces, as the window showed it. The cursor, taken to
     be at the end of the dictation, steps back to the words and selects
@@ -390,7 +390,7 @@ def fix_in_text(typed, fix, window, where=None):
     again, nothing else retyped. The keys go only into *window* (its class)
     and, where the desktop says, *where* (its id, focused_window.look's),
     checked right before each batch of them goes down. Not before each key,
-    as no typing in TuxTalk is: a look asks the desktop, and a batch's keys
+    as no typing in Falco is: a look asks the desktop, and a batch's keys
     follow each other at the typing delay.
     Never in a terminal, where Shift+Left selects nothing, nor a password
     field. True if done."""
@@ -436,9 +436,9 @@ def fix_in_text(typed, fix, window, where=None):
 _LEFT_ALONE = {
     "window": "another window had the focus",
     "password": "the cursor is in a password field",
-    "terminal": "TuxTalk doesn't change text in a terminal",
+    "terminal": "Falco doesn't change text in a terminal",
     "moved": "the cursor wasn't where the dictation ended",
-    "unchecked": "TuxTalk couldn't check that the cursor was still where the dictation ended",
+    "unchecked": "Falco couldn't check that the cursor was still where the dictation ended",
     "keys": "the keys to get to the word couldn't be pressed",
 }
 

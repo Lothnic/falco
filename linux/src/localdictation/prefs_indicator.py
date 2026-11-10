@@ -156,7 +156,7 @@ class IndicatorSettings(Tab):
         reset_btn = Gtk.Button(label="Reset to classic cyan")
         reset_btn.set_relief(Gtk.ReliefStyle.NONE)
         reset_btn.get_style_context().add_class("dim-label")
-        reset_btn.set_tooltip_text("Set the color back to TuxTalk's original cyan")
+        reset_btn.set_tooltip_text("Set the color back to Falco's original cyan")
         reset_btn.connect("clicked", self._reset_color_to_classic)
         color_box.pack_start(reset_btn, False, False, 0)
         grid.attach(color_box, 1, row + 1, 1, 1)
@@ -197,7 +197,7 @@ class IndicatorSettings(Tab):
             self._suppress_color_popup = False
 
     def _reset_color_to_classic(self, _button):
-        """Back to TuxTalk's classic cyan. With that color the orb draws its
+        """Back to Falco's classic cyan. With that color the orb draws its
         original hand-tuned gradient, the look it has out of the box."""
         self.update_config("indicator_color", CLASSIC_CYAN_HEX)
         self._set_color_mode_silently("custom")
@@ -262,7 +262,7 @@ class IndicatorSettings(Tab):
         check.set_tooltip_text(
             "Shows the recording indicator in the window you're dictating into, wherever it\n"
             "is on the screen. The position above applies inside that window; the offset\n"
-            "doesn't. When TuxTalk can't tell where the window is, the usual position and\n"
+            "doesn't. When Falco can't tell where the window is, the usual position and\n"
             "offset are used.")
         check.connect("toggled", lambda c: self.update_config(
             "indicator_follows_window", c.get_active()))

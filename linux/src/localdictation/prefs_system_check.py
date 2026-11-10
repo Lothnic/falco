@@ -116,8 +116,8 @@ def _helper_state(refused_shortcuts):
         return (f'<span color="{WARNING_AMBER}">⚠ {GLib.markup_escape_text(bad)} won\'t work: '
                 'with the hotkey helper a shortcut needs two of Ctrl, Alt and Super. '
                 'Pick one from the list in General → More shortcuts</span>', _READY, False, False)
-    return ('<span color="#4CAF50">✓ Ready. Only TuxTalk\'s hotkey helper reads the '
-            'keyboard, and it tells TuxTalk about its hotkeys, Right Ctrl or Right Alt '
+    return ('<span color="#4CAF50">✓ Ready. Only Falco\'s hotkey helper reads the '
+            'keyboard, and it tells Falco about its hotkeys, Right Ctrl or Right Alt '
             'going down, and Left Ctrl going down and up while Left Ctrl+Space is a '
             'dictation key, never what you type</span>', _READY, False, True)
 
@@ -129,7 +129,7 @@ def _input_group_state():
     from . import secure_input
     if secure_input.can_install()[0]:
         return ('<span color="#4CAF50">✓ Working</span>, through the \'input\' group. '
-                'TuxTalk\'s hotkey helper is safer: with it, other programs '
+                'Falco\'s hotkey helper is safer: with it, other programs '
                 'can\'t read what you type', SWITCH_TO_HELPER_LABEL, True, True)
     return ('<span color="#4CAF50">✓ Typing permissions configured correctly</span>',
             _READY, False, True)
@@ -148,7 +148,7 @@ def _no_access_state(hello):
     # Without /dev/input the hotkey is never seen, so no mode of output can
     # help; say so rather than offer a fallback.
     hotkey_ok, _ = uinput_helper.check_input_read_permission(hello)
-    blocked = "TuxTalk can't type" if hotkey_ok else "The dictation key won't work"
+    blocked = "Falco can't type" if hotkey_ok else "The dictation key won't work"
     # The same choice Fix Typing makes (secure_input.fix_permissions): the
     # hotkey helper works at once, only the 'input' group needs a restart.
     restart = "" if secure_input.can_install()[0] else " and restart"
@@ -177,7 +177,7 @@ class SystemCheck(Tab):
         return row
 
     def _build_gpu(self, check, crow):
-        """The graphics card: what TuxTalk found, and CUDA's state; returns the next row."""
+        """The graphics card: what Falco found, and CUDA's state; returns the next row."""
         check.attach(subheading("Graphics card"), 0, crow, 2, 1)
         crow += 1
         self.gpu_status_label = Gtk.Label(label="Checking...", xalign=0)
@@ -286,7 +286,7 @@ class SystemCheck(Tab):
         self.install_extension_button.get_child().set_xalign(0.5)
         self.install_extension_button.set_tooltip_text(
             "Download and install the GNOME Shell extension\n"
-            "Adds TuxTalk's menu to the top bar, and keeps the dictation keys from "
+            "Adds Falco's menu to the top bar, and keeps the dictation keys from "
             "reaching other apps")
         self.install_extension_button.set_sensitive(False)
         ext_button_box.pack_start(self.install_extension_button, False, False, 0)
@@ -422,13 +422,13 @@ class SystemCheck(Tab):
             response = show_message(
                 self.window, Gtk.MessageType.QUESTION,
                 "Switch to the hotkey helper?" if switching else "Configure Typing Permissions?",
-                ("This sets TuxTalk up so the hotkeys and typing work without the "
+                ("This sets Falco up so the hotkeys and typing work without the "
                  "'input' group, and takes you out of that group, so other programs "
                  "can't read your keyboard. (If another program you use needs the "
                  "group, a key remapper for instance, add yourself back.)\n\n"
                  if switching else
-                 "This updates TuxTalk's hotkey helper.\n\n" if updating else
-                 "This will configure system permissions to allow TuxTalk to type "
+                 "This updates Falco's hotkey helper.\n\n" if updating else
+                 "This will configure system permissions to allow Falco to type "
                  "directly into applications.\n\n")
                 + "What this does:\n"
                 + "".join(f"• {line}\n" for line in lines)
@@ -494,7 +494,7 @@ class SystemCheck(Tab):
             self.window,
             Gtk.MessageType.QUESTION,
             "Leave the 'input' group?",
-            "TuxTalk doesn't need it any more: its hotkey helper reads the hotkeys. "
+            "Falco doesn't need it any more: its hotkey helper reads the hotkeys. "
             "Leaving it means other programs can't read your keyboard.\n\n"
             "If some other program you use needs the group (a key remapper, for "
             "instance), it will stop working until you add yourself back.\n\n"
@@ -515,8 +515,8 @@ class SystemCheck(Tab):
         from .secure_input import STILL_IN_GROUP
         if ok and message == STILL_IN_GROUP:
             show_message(self.window, Gtk.MessageType.WARNING, "You're still in the 'input' group",
-                         "TuxTalk couldn't take you out of it. Your system may keep "
-                         "that group somewhere TuxTalk can't change.")
+                         "Falco couldn't take you out of it. Your system may keep "
+                         "that group somewhere Falco can't change.")
         elif ok:
             show_message(self.window, Gtk.MessageType.INFO, "You've left the 'input' group",
                          "Restart your computer to finish. Until then, programs that "
@@ -542,14 +542,14 @@ class SystemCheck(Tab):
         from .secure_input import STILL_IN_GROUP
         still_in_group = success and message == STILL_IN_GROUP
         still_in_group_text = (
-            "TuxTalk couldn't take you out of the 'input' group, so other programs "
+            "Falco couldn't take you out of the 'input' group, so other programs "
             "can still read your keyboard. Your system may keep that group "
-            "somewhere TuxTalk can't change. Your hotkeys work either way.")
+            "somewhere Falco can't change. Your hotkeys work either way.")
         if success and not needs_restart:
             show_message(self.window,
                          Gtk.MessageType.INFO,
                          "Hotkeys and Typing Set Up!",
-                         "TuxTalk's hotkey helper is installed, and TuxTalk can type into "
+                         "Falco's hotkey helper is installed, and Falco can type into "
                          "your applications. No restart is needed.\n\n"
                          + (still_in_group_text if still_in_group else
                             "You've also left the 'input' group. Restart your computer when "
@@ -567,7 +567,7 @@ class SystemCheck(Tab):
                          "IMPORTANT: Restart your computer to apply the changes.\n"
                          "(Logging out and back in is often not enough.)\n"
                          "(Some systems may require a full reboot instead.)\n\n"
-                         "After that, TuxTalk will be able to type "
+                         "After that, Falco will be able to type "
                          "directly into your applications.")
             self._check_typing_status()
         else:
@@ -598,7 +598,7 @@ class SystemCheck(Tab):
         Not installed is a choice where the tray icon works without it, and
         a problem where the desktop has no tray: there it's the only menu on
         screen, and System check opens on Install Extension (the no-tray menu
-        window's "Add TuxTalk to the Top Bar" brings the user here)."""
+        window's "Add Falco to the Top Bar" brings the user here)."""
         try:
             from . import extension_helper
             status = extension_helper.get_extension_status()
@@ -678,18 +678,18 @@ class SystemCheck(Tab):
                              "<b>Next Steps:</b>\n\n"
                              "1. To activate the extension: "
                              f"{GLib.markup_escape_text(extension_reload_steps())}\n\n"
-                             "2. The TuxTalk icon will appear in your top panel\n\n"
+                             "2. The Falco icon will appear in your top panel\n\n"
                              "3. The icon gives you:\n"
                              f"{EXTENSION_FEATURES}", markup=True)
             else:
                 button.set_sensitive(True)
                 self._check_extension_status()      # it may be in place, but off
                 show_message(self.window, Gtk.MessageType.ERROR, "Installation Failed",
-                             "TuxTalk couldn't install the GNOME extension, or GNOME "
+                             "Falco couldn't install the GNOME extension, or GNOME "
                              "wouldn't turn it on; the log says which.\n\n"
                              "If it isn't installed, check your internet connection and "
                              "try again. If it is, open GNOME's Extensions app and switch "
-                             "TuxTalk on there.")
+                             "Falco on there.")
 
         run_with_progress(self.window, "Installing Extension", "Preparing installation...",
                           extension_helper.download_and_install_extension, finish)
@@ -699,8 +699,8 @@ class SystemCheck(Tab):
         from . import extension_helper
         response = show_message(
             self.window, Gtk.MessageType.WARNING, "Uninstall GNOME Extension?",
-            "This will remove the TuxTalk GNOME Shell extension.\n\n"
-            "The main TuxTalk application will continue to work normally.\n\n"
+            "This will remove the Falco GNOME Shell extension.\n\n"
+            "The main Falco application will continue to work normally.\n\n"
             "Uninstall?",
             buttons=Gtk.ButtonsType.YES_NO)
         if response == Gtk.ResponseType.YES:

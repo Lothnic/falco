@@ -3,8 +3,8 @@
 help_text writes each tab as Pango markup with marks where its parts begin:
 "# " the page's title (its first line), "## " a feature with cards of its
 own (Voice Editing, Type at Pause), "### " a card. A heading that starts
-with "🧪 " is a TuxTalk Labs one; a "(...)" at its end ("Performance presets
-(TuxTalk menu → Performance)") is a note shown dim beside it. Text after a
+with "🧪 " is a Falco Labs one; a "(...)" at its end ("Performance presets
+(Falco menu → Performance)") is a note shown dim beside it. Text after a
 "## " and before its first card introduces that feature. help_pages shows
 the result.
 """

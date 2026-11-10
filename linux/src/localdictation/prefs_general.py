@@ -103,7 +103,7 @@ def _helper_update_line(unheard):
 
 def _test_offer_lines():
     """hotkey_change_message's paragraphs offering the hotkey test."""
-    return ["Try it once in the test to make sure it reaches TuxTalk. On some "
+    return ["Try it once in the test to make sure it reaches Falco. On some "
             "laptops the F-keys change the brightness or volume unless you hold Fn; "
             "Right Ctrl, Right Alt, Scroll Lock and Left Ctrl+Space never need it.",
             # So Not Now isn't a dead end: the Test Hotkeys button can be below the fold.
@@ -321,10 +321,10 @@ class GeneralTab(Tab):
     def _build_startup(self, grid, row):
         """Start at login; returns the next free row."""
         row = section_header(grid, row, "Startup Options")
-        check = Gtk.CheckButton(label="Launch TuxTalk at login")
+        check = Gtk.CheckButton(label="Launch Falco at login")
         check.set_active(self.config.get("launch_at_login", False))
         check.connect("toggled", lambda x: self.update_config("launch_at_login", x.get_active()))
-        check.set_tooltip_text("Automatically start TuxTalk when you log in to your desktop.\n"
+        check.set_tooltip_text("Automatically start Falco when you log in to your desktop.\n"
                                "Useful for having dictation always available.")
         grid.attach(check, 0, row, 2, 1)
         return row + 1

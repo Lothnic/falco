@@ -108,7 +108,7 @@ def _restart_without_tray():
             if not single_instance.claim(lock, wait_s=QUIT_WAIT_S):
                 # A failure, so the change stays owed: a tray starting keeps
                 # the service already running, with the old settings.
-                logger.warning("Dictation not restarted: TuxTalk is starting or uninstalling")
+                logger.warning("Dictation not restarted: Falco is starting or uninstalling")
                 return False
             if not end_dictation_service():
                 logger.warning("Dictation not restarted: the old service wouldn't end")
@@ -299,7 +299,7 @@ class PreferencesWindow:
 
             # Same serialiser and atomic write as config.save_config(): one
             # escaping rule, and a crash mid-write can't leave an empty file.
-            lines = ["# TuxTalk config"]
+            lines = ["# Falco config"]
             for key, value in merged.items():
                 lines.append(f"{key} = {_toml_value(value)}")
             write_text_atomic(CONFIG_PATH, "\n".join(lines) + "\n")
@@ -536,7 +536,7 @@ class PreferencesWindow:
 
     def save_before_restart(self):
         """Save the snippets and the settings, as something about to restart
-        TuxTalk (an update, an uninstall) must; False, having said why, when
+        Falco (an update, an uninstall) must; False, having said why, when
         either failed. What's saved stays owed: if that restart never comes
         (the uninstall is cancelled, the update's download fails), the next
         Apply still downloads what it needs and restarts for it, and a
@@ -584,7 +584,7 @@ class PreferencesWindow:
         show_message(self.window, Gtk.MessageType.WARNING,
                      "Start at login wasn't " + ("turned on" if enable else "turned off"),
                      "Your other settings are saved. Apply tries this again; "
-                     "TuxTalk's log says what went wrong.")
+                     "Falco's log says what went wrong.")
 
     def _autostart_pending(self):
         """True after a save whose start-at-login change failed: it's still
@@ -874,7 +874,7 @@ class PreferencesWindow:
         Gtk.main_quit()
 
     def on_help(self, button):
-        """Open TuxTalk's Help window."""
+        """Open Falco's Help window."""
         from .help_dialog import show_help_dialog
         show_help_dialog()
 

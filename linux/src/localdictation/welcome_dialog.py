@@ -38,7 +38,7 @@ detect_uinput_access = check_all_device_permissions
 
 
 def helper_sees_no_keyboard():
-    """Whether Phonon Linux's hotkey helper answers but says it reads no
+    """Whether Falco's hotkey helper answers but says it reads no
     keyboard (issue #26; one before 1.12 doesn't say). The access check
     fails then too, but Fix Typing can't help: it would install the same
     helper again."""
@@ -48,7 +48,7 @@ def helper_sees_no_keyboard():
 
 
 def outdated_helper():
-    """The running hotkey helper's version when this Phonon Linux, or a
+    """The running hotkey helper's version when this Falco, or a
     dictation key saved, needs a newer one (secure_input.needs_update),
     else None. Fix Typing installs the new one, so first run offers it
     there rather than leave it to the question at the next start."""
@@ -411,7 +411,7 @@ class WelcomeDialog:
 
     def _build_dialog(self):
         """Build the GTK dialog with appropriate content."""
-        self.dialog = Gtk.Dialog(title="Welcome to Phonon Linux!")
+        self.dialog = Gtk.Dialog(title="Welcome to Falco!")
         # Resizable, and capped to the screen when it's created (the realize
         # hook's ui_style.fit_window_to_screen), so the footer (Set it up
         # button) is always reachable. The content below is in a
@@ -487,7 +487,7 @@ class WelcomeDialog:
             False, False, 0)
 
     def _build_header(self, vbox):
-        """The title, a subtitle and what Phonon Linux does, for a first look."""
+        """The title, a subtitle and what Falco does, for a first look."""
         header = Gtk.Label()
         header.set_markup('<span size="x-large"><b>🎙️ Welcome to Phonon Linux!</b></span>')
         vbox.pack_start(header, False, False, 0)
@@ -559,7 +559,7 @@ class WelcomeDialog:
             f"1. Hold {key}",
             "2. Talk",
             "3. Let go: your words are typed where your cursor is",
-            "Settings and Help are in the Phonon Linux menu "
+            "Settings and Help are in the Falco menu "
             f"({GLib.markup_escape_text(extension_helper.menu_location())})",
         ]
 
@@ -639,7 +639,7 @@ class WelcomeDialog:
         """Build the PortAudio setup section (required for audio recording)."""
         step = _required_step(
             '⚠️ Audio Library Required',
-            '<span>Phonon Linux needs PortAudio to record audio from your microphone.\n'
+            '<span>Falco needs PortAudio to record audio from your microphone.\n'
             'This library is not installed on your system.</span>',
             '❌ <span color="#f44336">PortAudio library not found</span>',
             'Install PortAudio',
@@ -692,7 +692,7 @@ class WelcomeDialog:
                 Gtk.MessageType.INFO,
                 "PortAudio Installed!",
                 "PortAudio has been installed successfully.\n\n"
-                "Phonon Linux can now record audio from your microphone for speech recognition.")
+                "Falco can now record audio from your microphone for speech recognition.")
         else:
             button.set_sensitive(True)
             button.set_label("📦 Install PortAudio (Recommended)")
@@ -779,7 +779,7 @@ class WelcomeDialog:
         step = _required_step(
             title, explain, status,                 # Fix Typing updates the status
             action, details, self._fix_label,
-            "Lets Phonon Linux type into your apps and hear its hotkeys.\n"
+            "Lets Falco type into your apps and hear its hotkeys.\n"
             "This will prompt for your admin password.",
             self._on_fix_typing_clicked)
         self._uinput_status_label = step.status
@@ -800,8 +800,8 @@ class WelcomeDialog:
         # virtual keyboard, so it needs these permissions too.
         alt_note = Gtk.Label()
         alt_note.set_markup(
-            '<span><i>💡 If you skip this, Phonon Linux can\'t type into other apps, but every\n'
-            '   dictation is kept in Recent Dictations in the Phonon Linux menu to copy and '
+            '<span><i>💡 If you skip this, Falco can\'t type into other apps, but every\n'
+            '   dictation is kept in Recent Dictations in the Falco menu to copy and '
             'paste.</i></span>')
         alt_note.set_halign(Gtk.Align.START)
         alt_note.set_margin_start(10)
@@ -833,7 +833,7 @@ class WelcomeDialog:
         elif self.needs_portaudio_install:
             self._continue_without(
                 "Recording isn't set up yet",
-                "Without PortAudio Phonon Linux can't hear your microphone. Go back and "
+                "Without PortAudio Falco can't hear your microphone. Go back and "
                 "click Install PortAudio, or continue and install it later.")
         else:
             self.dialog.response(Gtk.ResponseType.OK)
@@ -909,7 +909,7 @@ class WelcomeDialog:
                          ("A restart will be needed to activate this — but finish "
                           "setup first. You'll be reminded at the end.\n\n"
                           if needs_restart else "")
-                         + "Phonon Linux can now type directly into your applications!")
+                         + "Falco can now type directly into your applications!")
         else:
             # Failed or cancelled: show what went wrong and let the user try again.
             button.set_sensitive(True)
@@ -946,7 +946,7 @@ class WelcomeDialog:
         self.extension_check.add(ext_label)
         self.extension_check.set_tooltip_text(
             "Install native GNOME Shell extension for enhanced integration.\n"
-            "Adds Phonon Linux's menu to the top bar, and keeps the dictation keys from "
+            "Adds Falco's menu to the top bar, and keeps the dictation keys from "
             "reaching other apps.\n"
             "Lightweight (~10KB) and requires logging out/in after installation."
         )
@@ -962,7 +962,7 @@ class WelcomeDialog:
             no_tray.set_markup(
                 f'<span color="{WARNING_AMBER}"><b>⚠️ Recommended here: this desktop has no '
                 'system tray.</b>\n'
-                'Without the extension, Phonon Linux has no menu on screen. Its menu '
+                'Without the extension, Falco has no menu on screen. Its menu '
                 '(Preferences, Transcribe a File and more) then opens only when you '
                 'start Phonon Linux again from your apps.</span>')
             no_tray.set_line_wrap(True)
@@ -1091,7 +1091,7 @@ class WelcomeDialog:
             self.gpu_check = Gtk.CheckButton(
                 label=f"Use my graphics card ({self.hardware.gpu_name})")
             self.gpu_check.set_active(True)
-            self.gpu_check.set_tooltip_text("Several times faster. Phonon Linux checks it really is "
+            self.gpu_check.set_tooltip_text("Several times faster. Falco checks it really is "
                                             "faster than your processor before using it.")
             self.gpu_check.connect("toggled", lambda *_: self._refresh_recommendation())
             other.pack_start(self.gpu_check, False, False, 0)
@@ -1165,8 +1165,8 @@ class WelcomeDialog:
             self._syncing = False
 
     def _build_footer(self, vbox):
-        """The bottom row: "Set it up", or on a desktop Phonon Linux can't work on,
-        only Quit Phonon Linux."""
+        """The bottom row: "Set it up", or on a desktop Falco can't work on,
+        only Quit Falco."""
         button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         button_box.set_halign(Gtk.Align.CENTER)
         button_box.set_margin_top(15)
@@ -1184,7 +1184,7 @@ class WelcomeDialog:
             next_label.set_margin_top(10)
             vbox.pack_start(next_label, False, False, 0)
 
-            quit_btn = Gtk.Button(label="Quit Phonon Linux")
+            quit_btn = Gtk.Button(label="Quit Falco")
             quit_btn.set_size_request(200, 40)
             # Neutral secondary style: a clear button, but understated so it
             # doesn't fight the red warning or the blue primary download button.
@@ -1260,7 +1260,7 @@ class WelcomeDialog:
                 - 'model', 'device', 'dictation_language': the setup the
                   recommendation card shows (absent on an unsupported desktop)
                 - 'continue': bool (True if user clicked "Set it up")
-                - 'quit': bool (the unsupported desktop's Quit Phonon Linux)
+                - 'quit': bool (the unsupported desktop's Quit Falco)
                 - 'needs_restart': bool (Fix Typing used the "input" group)
         """
         self.dialog.set_opacity(0.0)

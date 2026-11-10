@@ -24,36 +24,36 @@ NOTES = {
         "There is no {app} running to do that to. Say \"open {app}\" first."),
     "cant_close_here": (
         "Can't close windows on this desktop",
-        "This desktop doesn't let TuxTalk close a window. Close it yourself."),
+        "This desktop doesn't let Falco close a window. Close it yourself."),
     "cant_switch_here": (
         "Can't switch windows on this desktop",
-        "This desktop doesn't let TuxTalk bring another window forward. Click the "
+        "This desktop doesn't let Falco bring another window forward. Click the "
         "window you want."),
     "cant_size_here": (
         "Can't minimize or maximize here",
-        "This desktop doesn't let TuxTalk change a window's size. Use the window's "
+        "This desktop doesn't let Falco change a window's size. Use the window's "
         "own buttons."),
     "no_focused_window": (
         "Couldn't tell which window",
-        "TuxTalk couldn't tell which window has the focus, so it did nothing. Click "
+        "Falco couldn't tell which window has the focus, so it did nothing. Click "
         "the window and try again."),
     # GNOME tells which window has the focus only through TuxTalk's extension,
     # which is off.
     "no_focused_window_gnome": (
         "Couldn't tell which window",
-        "TuxTalk couldn't tell which window has the focus, so it did nothing. Turn on "
-        "the TuxTalk GNOME extension, or click the window and try again."),
+        "Falco couldn't tell which window has the focus, so it did nothing. Turn on "
+        "the Falco GNOME extension, or click the window and try again."),
     "gnome_relogin": (
         "Log out and back in for this",
-        "This needs the newer TuxTalk GNOME extension. Log out and back in once, "
+        "This needs the newer Falco GNOME extension. Log out and back in once, "
         "then try again."),
     "no_browser": (
         "No web browser is set up",
-        "TuxTalk found no web browser to search with. Set a default browser in your "
+        "Falco found no web browser to search with. Set a default browser in your "
         "desktop's settings."),
     "browser_copies_alike": (
         "Two copies of your browser",
-        "Two copies of your default browser are installed, and TuxTalk can't tell their "
+        "Two copies of your default browser are installed, and Falco can't tell their "
         "windows apart, so nothing was searched. Bring the one you want to the front, "
         "then say it again."),
     "browser_not_started": (
@@ -64,18 +64,18 @@ NOTES = {
         "Nothing was searched. Bring your browser to the front, then say it again."),
     "address_not_opened": (
         "Couldn't open that address",
-        "TuxTalk couldn't hand the address to your browser. Try typing it there."),
+        "Falco couldn't hand the address to your browser. Try typing it there."),
     "cant_place_here": (
         "Can't move windows on this desktop",
-        "This desktop doesn't let TuxTalk snap or move a window. Drag it, or use the "
+        "This desktop doesn't let Falco snap or move a window. Drag it, or use the "
         "desktop's own keys."),
     "cant_desktops_here": (
         "Can't switch desktops here",
-        "This desktop doesn't let TuxTalk show the desktop or switch desktops. Use the "
+        "This desktop doesn't let Falco show the desktop or switch desktops. Use the "
         "desktop's own keys."),
     "no_overview_here": (
         "No window overview here",
-        "This desktop has no overview of all windows that TuxTalk can open. Try Alt+Tab."),
+        "This desktop has no overview of all windows that Falco can open. Try Alt+Tab."),
     "no_such_desktop": (
         "There's no desktop {number}",
         "This computer has fewer desktops than that. Say a smaller number, or add "
@@ -90,7 +90,7 @@ NOTES = {
         "desktop\" for the other way."),
     "one_screen": (
         "There's only one screen",
-        "TuxTalk sees one screen here, so the window stays where it is."),
+        "Falco sees one screen here, so the window stays where it is."),
     # The desktop was asked and didn't answer in time, or its script failed:
     # it can do this, so "can't here" would be wrong, and so would any claim
     # about the screens.
@@ -100,40 +100,40 @@ NOTES = {
         "say it again."),
     "no_sound_control": (
         "Couldn't change the volume",
-        "TuxTalk couldn't reach the sound system (PipeWire or PulseAudio). Use your "
+        "Falco couldn't reach the sound system (PipeWire or PulseAudio). Use your "
         "desktop's volume control."),
     "no_player": (
         "No music player to control",
-        "TuxTalk found no music or video player it can control. Start one, then try "
+        "Falco found no music or video player it can control. Start one, then try "
         "again."),
     "nothing_playing": (
         "No music is playing",
         "Nothing is playing, so there was nothing to pause."),
     "which_player": (
         "Several players paused: {players}",
-        "More than one player is paused, so TuxTalk didn't pick one. Start the one you "
+        "More than one player is paused, so Falco didn't pick one. Start the one you "
         "want yourself."),
     "which_playing": (
         "Several players playing: {players}",
-        "More than one player is playing, so TuxTalk didn't pick one. Pause the others, "
+        "More than one player is playing, so Falco didn't pick one. Pause the others, "
         "then try again."),
     "player_no_answer": (
         "The music player didn't answer",
-        "TuxTalk asked the player, but it didn't answer in time. Try again in a moment."),
+        "Falco asked the player, but it didn't answer in time. Try again in a moment."),
     "lock_failed": (
         "Couldn't lock the screen",
         "The computer didn't take the request to lock. Lock it from your desktop's menu."),
     "lock_unconfirmed": (
         "Lock not confirmed",
-        "TuxTalk asked the computer to lock but couldn't confirm it did. Check the screen "
+        "Falco asked the computer to lock but couldn't confirm it did. Check the screen "
         "before you walk away."),
     "no_screenshot_tool": (
         "Couldn't take a screenshot",
-        "TuxTalk found no way to take a screenshot on this desktop. Use your desktop's "
+        "Falco found no way to take a screenshot on this desktop. Use your desktop's "
         "screenshot tool, often the Print Screen key."),
     "screenshot_unconfirmed": (
         "Screenshot not confirmed",
-        "TuxTalk asked for a screenshot, but didn't hear back. It may still be saved "
+        "Falco asked for a screenshot, but didn't hear back. It may still be saved "
         "where your desktop keeps screenshots."),
     "screenshot_cancelled": (
         "Screenshot cancelled",
@@ -147,7 +147,7 @@ NOTES = {
         "for the whole screen."),
     "grid_needs_x": (
         "The mouse grid needs X (XWayland) here",
-        "This desktop has no X display for TuxTalk to draw the grid on. \"Left click\" and "
+        "This desktop has no X display for Falco to draw the grid on. \"Left click\" and "
         "\"right click\" still click where the pointer is."),
     "grid_needs_compositing": (
         "The mouse grid needs see-through windows here",
@@ -171,11 +171,11 @@ NOTES = {
         "\"click\" and a number."),
     "cant_place": (
         "Can't place the pointer exactly on this screen setup",
-        "TuxTalk couldn't put the pointer exactly on that spot, so it didn't click. Use "
+        "Falco couldn't put the pointer exactly on that spot, so it didn't click. Use "
         "the mouse for this one."),
     "zoom_not_back": (
         "Not clicked: the desktop is still zoomed in",
-        "TuxTalk couldn't put the desktop's zoom back, and a click would land where you "
+        "Falco couldn't put the desktop's zoom back, and a click would land where you "
         "can't see it. Zoom out with your desktop's own zoom keys, then say it again."),
     "click_key_held": (
         "Not clicked: a dictation key stayed down",
@@ -183,7 +183,7 @@ NOTES = {
         "would have been a Ctrl or Alt click. Let go of the key and say it again."),
     "pointer_failed": (
         "The mouse didn't work this time",
-        "TuxTalk's virtual pointer didn't move or click. Say it again; if it keeps "
+        "Falco's virtual pointer didn't move or click. Say it again; if it keeps "
         "happening, open Preferences, Advanced, Show system check."),
 }
 
@@ -225,7 +225,7 @@ def tell(kind: str, beeps_on: bool, **names) -> None:
 
 def say_focus_unknown(beeps_on: bool) -> None:
     """The desktop didn't say which app has the focus, so a key or a search
-    wasn't done. On GNOME that is usually the TuxTalk extension being off;
+    wasn't done. On GNOME that is usually the Falco extension being off;
     with it on (the tray slow to answer), clicking the window is the advice."""
     off = (desktop_detect.get_desktop_environment() == "gnome"
            and not app_focus.extension_enabled())

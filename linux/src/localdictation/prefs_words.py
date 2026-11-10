@@ -116,7 +116,7 @@ class WordsTab(Tab):
         """Your Words: saved as soon as a word is saved or removed, like Fix a
         Word, which adds to this list from the tray too."""
         _section(vbox, "Your Words",
-                 "Names and terms TuxTalk spells your way. Add what it hears them as, "
+                 "Names and terms Falco spells your way. Add what it hears them as, "
                  "and it fixes those too.")
         self.words_store = Gtk.ListStore(str, str)      # word, its mishearings
         # Fixed heights: a tree view measures its rows only once the window is
@@ -132,16 +132,16 @@ class WordsTab(Tab):
         self.words_tree.connect("row-activated", lambda *_: self._on_edit_word(None))
         _buttons(vbox,
                  ("Add Word", "Add a name or term to spell your way", self._on_add_word, False),
-                 ("Edit...", "Change the selected word or what TuxTalk hears it as",
+                 ("Edit...", "Change the selected word or what Falco hears it as",
                   self._on_edit_word, False),
                  ("Remove", "Remove the selected word", self._on_remove_word, False),
-                 ("Fix a Word...", "Teach TuxTalk a word from one of your recent dictations",
+                 ("Fix a Word...", "Teach Falco a word from one of your recent dictations",
                   self._on_fix_word, True))
 
     def _build_snippets(self, vbox):
         """The snippets: edited in place, saved with Apply or OK."""
         _section(vbox, "Snippets",
-                 'Say a short phrase and TuxTalk types the full text. For example, '
+                 'Say a short phrase and Falco types the full text. For example, '
                  'say "my email" and it types user@example.com.')
         # Shown while custom_commands.toml can't be read (_show_read_problem).
         self.read_problem = Gtk.Label(xalign=0)
@@ -155,7 +155,7 @@ class WordsTab(Tab):
         # added and left untouched saves nothing.
         for column_idx, (title, hint, edited, width) in enumerate((
                 ("You Say", "new phrase", self._on_phrase_edited, 150),
-                ("TuxTalk Types", "replacement text", self._on_replacement_edited, 200))):
+                ("Falco Types", "replacement text", self._on_replacement_edited, 200))):
             renderer = Gtk.CellRendererText()
             renderer.set_property("editable", True)
             renderer.set_property("placeholder-text", hint)
@@ -301,7 +301,7 @@ class WordsTab(Tab):
         box.set_spacing(8)
         entries = []
         for label, value, hint in (("You say", model[it][0], "my email"),
-                                   ("TuxTalk types", model[it][1], "user@example.com")):
+                                   ("Falco types", model[it][1], "user@example.com")):
             entry = Gtk.Entry(text=value)
             _field(box, label, entry)
             entry.set_placeholder_text(hint)
@@ -396,7 +396,7 @@ class WordsTab(Tab):
         word, phrases = row
         answer = show_message(
             self.window, Gtk.MessageType.QUESTION, f"Remove {word}?",
-            "TuxTalk stops spelling it your way"
+            "Falco stops spelling it your way"
             + (f", and stops fixing what it hears instead ({', '.join(phrases)})."
                if phrases else "."),
             buttons=Gtk.ButtonsType.YES_NO)
@@ -412,7 +412,7 @@ class WordsTab(Tab):
 
     def _edit_word_dialog(self, old, phrases):
         """Add a word (*old* None) or change one: its spelling and the phrases
-        TuxTalk hears instead, one per line. Saved straight away."""
+        Falco hears instead, one per line. Saved straight away."""
         from . import vocabulary
         dialog = Gtk.Dialog(title="Your Word" if old else "Add a Word",
                             transient_for=self.window, modal=True)
@@ -426,7 +426,7 @@ class WordsTab(Tab):
 
         entry = Gtk.Entry(text=old or "")
         _field(box, "Spelled", entry)
-        entry.set_placeholder_text("TuxTalk")
+        entry.set_placeholder_text("Falco")
         entry.set_activates_default(True)
         box.pack_start(entry, False, False, 0)
 
@@ -450,7 +450,7 @@ class WordsTab(Tab):
         how.set_markup(
             "<small>Whisper models are told about your words before they listen. "
             "Every model, Parakeet included, fixes them when they come out split up "
-            "or with the wrong capitals (\u201ctux talk\u201d becomes TuxTalk), and "
+            "or with the wrong capitals (\u201ctux talk\u201d becomes Falco), and "
             "fixes what you list above.</small>")
         box.pack_start(how, False, False, 0)
 

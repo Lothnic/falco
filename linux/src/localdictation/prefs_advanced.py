@@ -1,5 +1,5 @@
 """Preferences, Advanced tab: the Text options, Fine-tuning, the System check
-(prefs_system_check.py) and TuxTalk Labs (Type at pause in
+(prefs_system_check.py) and Falco Labs (Type at pause in
 prefs_type_at_pause.py)."""
 import os
 
@@ -59,7 +59,7 @@ class AdvancedTab(Tab):
             self.type_at_pause.stop_test(closing)
 
     def build(self):
-        """The tab's page: Text, Fine-tuning, System check and TuxTalk Labs."""
+        """The tab's page: Text, Fine-tuning, System check and Falco Labs."""
         grid = Gtk.Grid()
         grid.set_column_spacing(10)
         grid.set_row_spacing(10)
@@ -209,7 +209,7 @@ class AdvancedTab(Tab):
             "Auto mode uses paste for terminals and normal text fields, and falls back to\n"
             "typing where paste is unreliable.\n"
             "\n"
-            "TuxTalk doesn't type into password fields it can recognise: most GTK apps,\n"
+            "Falco doesn't type into password fields it can recognise: most GTK apps,\n"
             "KDE apps and Firefox with accessibility on, and the desktop's own password prompt.\n"
             "\n"
             "Clipboard Paste works in most applications:\n"
@@ -251,7 +251,7 @@ class AdvancedTab(Tab):
                 "restore_clipboard", x.get_active()))
             restore_check.set_tooltip_text(
                 "Pasting a dictation puts it on the clipboard, replacing whatever you'd copied.\n"
-                "With this on, TuxTalk puts your copied item back half a second after pasting.\n\n"
+                "With this on, Falco puts your copied item back half a second after pasting.\n\n"
                 "Leave it off if you like to re-paste a dictation that went into the wrong "
                 "window.\n"
                 "Recent Dictations in the tray menu keeps your last 20 either way.\n\n"
@@ -270,11 +270,11 @@ class AdvancedTab(Tab):
             label="Log transcribed text (for troubleshooting)")
         self.log_transcripts_check.set_active(bool(self.config.get("log_transcripts", False)))
         self.log_transcripts_check.set_tooltip_text(
-            "Off by default for your privacy — TuxTalk does not write what you dictate to its "
+            "Off by default for your privacy — Falco does not write what you dictate to its "
             "log.\n"
             "Turn this on only when troubleshooting a dictation problem: it saves the full text "
             "of\n"
-            "everything you dictate to TuxTalk's log file on disk, in plain text, until you turn "
+            "everything you dictate to Falco's log file on disk, in plain text, until you turn "
             "it off."
         )
         self.log_transcripts_check.connect("toggled", self._on_log_transcripts_toggled)
@@ -287,14 +287,14 @@ class AdvancedTab(Tab):
         clear_log_btn = Gtk.Button(label="Clear log now")
         clear_log_btn.set_halign(Gtk.Align.START)
         clear_log_btn.set_tooltip_text(
-            "Erase the current TuxTalk log file (and its backup) from disk.")
+            "Erase the current Falco log file (and its backup) from disk.")
         clear_log_btn.connect("clicked", self._on_clear_log_clicked)
         clear_log_box.pack_start(clear_log_btn, False, False, 0)
         fine.attach(clear_log_box, 0, frow, 2, 1)
         frow += 1
 
     def _build_labs(self, grid, row):
-        """TuxTalk Labs, at *row* of *grid*."""
+        """Falco Labs, at *row* of *grid*."""
         # Experimental features: they work but are still being
         # refined, so they live here with a note saying so, the Help page about
         # them, and a feedback link. Hidden in the Flatpak: its portal input
@@ -372,7 +372,7 @@ class AdvancedTab(Tab):
                   "\u201cgo to the end\u201d")
         nav_check.set_active(bool(self.config.get("voice_navigation", False)))
         nav_check.set_tooltip_text(
-            "When a dictation is only one of these commands, TuxTalk does it instead of\n"
+            "When a dictation is only one of these commands, Falco does it instead of\n"
             "typing it. Inside a longer sentence the words are typed as usual.\n\n"
             "• Right after you dictate, on what you just said: “select that”,\n"
             "  “select the last sentence”, “select the last 3 words”\n"
@@ -485,7 +485,7 @@ class AdvancedTab(Tab):
         labs_links.pack_start(labs_help, False, False, 0)
         labs_feedback = Gtk.LinkButton.new_with_label(FEEDBACK_URL, "Send feedback")
         labs_feedback.set_tooltip_text("Tell us how the Labs features work for you "
-                                       "(TuxTalk Discussions on GitHub)")
+                                       "(Falco Discussions on GitHub)")
         labs_links.pack_start(labs_feedback, False, False, 0)
         grid.attach(labs_links, 0, row, 2, 1)
 
@@ -539,7 +539,7 @@ class AdvancedTab(Tab):
         check.set_active(bool(self.config.get("press_enter_after", False)))
         key = self.config.get("hotkey") or "the hotkey"
         check.set_tooltip_text(
-            "After each dictation TuxTalk presses Enter for you, so a chat message is sent.\n"
+            "After each dictation Falco presses Enter for you, so a chat message is sent.\n"
             "Not in terminals, where it would run the words as a command (say “press\n"
             "enter” to run one), nor in text editors and word processors, where Enter\n"
             "would only start a new line.\n\n"
@@ -549,8 +549,8 @@ class AdvancedTab(Tab):
             f"can't be changed with \u201cedit that\u201d, so tap {key} first if you want to.\n\n"
             "If what you said ends on a word like \u201cand\u201d or \u201cthe\u201d, it was "
             "probably\n"
-            "cut off, so it isn't sent. Where TuxTalk can't tell which window has the focus\n"
-            "(COSMIC, GNOME without TuxTalk's extension, Plasma 5.27 on Wayland), nothing\n"
+            "cut off, so it isn't sent. Where Falco can't tell which window has the focus\n"
+            "(COSMIC, GNOME without Falco's extension, Plasma 5.27 on Wayland), nothing\n"
             "is sent by itself.\n\n"
             "With this off, end any dictation with \u201cpress enter\u201d to send just that one.")
 
@@ -667,7 +667,7 @@ class AdvancedTab(Tab):
 
         response = show_message(
             self.window, Gtk.MessageType.WARNING, "Log all transcribed text?",
-            "This saves the full text of EVERYTHING you dictate to TuxTalk's log "
+            "This saves the full text of EVERYTHING you dictate to Falco's log "
             "file on disk, in plain text, and keeps it there until you turn this "
             "setting back off.\n\n"
             "Only enable it if you are troubleshooting a dictation problem.",
@@ -686,7 +686,7 @@ class AdvancedTab(Tab):
     def _on_clear_log_clicked(self, _button):
         """Erase the on-disk log after confirming — it can hold past dictation."""
         response = show_message(
-            self.window, Gtk.MessageType.WARNING, "Clear the TuxTalk log?",
+            self.window, Gtk.MessageType.WARNING, "Clear the Falco log?",
             "This permanently deletes the current log file and its backup from "
             "disk, including any past transcriptions recorded there. This cannot "
             "be undone.",
