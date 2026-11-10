@@ -221,13 +221,16 @@ fn work(inbox: Receiver<Event>) -> Result<()> {
         .context("download the speech and correction models")?;
 
     tray::set_status("loading the correction model");
-    let mut engine = Engine::start()?;
+    let mut engine = Engine::start(crate::backends::DEFAULT_MANIFEST)?;
     load::start();
 
     // The same readiness gate macOS applies: prove the real audio path before
     // telling the user Phonon is ready.
     tray::set_status("running the startup check");
     let mut check = startup_check(&engine);
+    if check.is_ok() {
+        engine.confirm_backend();
+    }
     if check.is_err() && engine.device() == Device::Gpu {
         // A GPU driver that answers wrongly must not cost the user dictation.
         eprintln!("phonon: startup check failed on the GPU; retrying on the CPU");
@@ -248,7 +251,7 @@ fn work(inbox: Receiver<Event>) -> Result<()> {
     READY.store(true, Ordering::Release);
     tray::notify(
         "Phonon is ready",
-        &format!("Hold {name} to dictate. Double-tap it to latch."),
+        &format!("Hold {name} to dictate, or tap it to start and tap again to stop."),
         false,
     );
 

@@ -1,7 +1,7 @@
 //! The Linux desktop application: tray, dictation key, capture, correction, insertion.
 //!
 //! The same flow as Windows (`win/mod.rs`): first-run download, a startup check
-//! on the embedded fixture, then hold the key to dictate, double-tap to latch.
+//! on the embedded fixture, then hold the key to dictate, or tap it to start and tap again to stop.
 //! Works on X11 and Wayland alike because the key and the paste go through the
 //! kernel (evdev and uinput), not through the display server.
 
@@ -159,19 +159,18 @@ fn app() -> Result<()> {
     fetch::ensure_all(&mut |p| tray::set_status(&p.line()))
         .context("download the speech and correction models")?;
     tray::set_status("loading the correction model");
-    let engine = Engine::start()?;
+    let mut engine = Engine::start(crate::backends::DEFAULT_MANIFEST)?;
     tray::set_status("running the startup check");
     let wav = paths::data_root().join("startup.wav");
     std::fs::write(&wav, crate::STARTUP_WAV).context("write the startup fixture")?;
-    let check = engine.run(&wav)?;
-    crate::assert_startup(&check)?;
+    let check = crate::startup_check_with_fallback(&mut engine, &wav, false)?;
     eprintln!("phonon: startup check passed: {}", check.polished);
 
     let idle = format!("ready. Hold {name} to dictate");
     tray::set_status(&idle);
     tray::notify(
         "Phonon is ready",
-        &format!("Hold {name} to dictate. Double-tap it to latch."),
+        &format!("Hold {name} to dictate, or tap it to start and tap again to stop."),
         false,
     );
 

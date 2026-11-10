@@ -8,8 +8,9 @@ import ServiceManagement
 
 struct NativeSettings: Codable, Equatable {
     /// Schema 2 made screen OCR and recording retention opt-in. Schema 1 files
-    /// keep the values their owner already saw in Settings.
-    static let currentSchemaVersion = 2
+    /// keep the values their owner already saw in Settings. Schema 3 turned
+    /// meeting detection on by default (see `meetingCapture`).
+    static let currentSchemaVersion = 3
     /// 0 keeps recordings until they are deleted by hand.
     static let keepRecordingsForever = 0
 
@@ -40,7 +41,8 @@ struct NativeSettings: Codable, Equatable {
     var screenContextDenylist: [String]
     /// Send the text around the cursor to the local correction model.
     var textboxContext: Bool
-    /// Notice calls and offer to record meeting notes (mic + call audio).
+    /// Notice calls and offer to record meeting notes (mic + call audio). On by
+    /// default since schema 3: it only asks, it never records by itself.
     var meetingCapture: Bool
     /// Start recording a detected call without asking. Off by default:
     /// recording other people needs their consent in some places.
@@ -71,9 +73,6 @@ struct NativeSettings: Codable, Equatable {
     var showIdleCapsule: Bool
     /// Other audio while the key is held: left alone, lowered (default) or muted.
     var backgroundAudio: BackgroundAudio
-    /// A short tap of the hold key (fn or Right Option) starts dictation and the
-    /// next tap stops it; a hold stays push-to-talk (issue #34). Off by default.
-    var tapToToggle: Bool
     /// Per-app writing mode, bundle id -> refiner mode (`minimal`, `casual`,
     /// `formal`, `prompt`). Wins over `writing_style` and the app's category.
     var writingModesByApp: [String: String]
@@ -112,7 +111,6 @@ struct NativeSettings: Codable, Equatable {
         case showInDock = "show_in_dock"
         case showIdleCapsule = "show_idle_capsule"
         case backgroundAudio = "background_audio"
-        case tapToToggle = "tap_to_toggle"
         case writingModesByApp = "writing_modes_by_app"
         case byokEnabled = "byok_enabled"
         case byokBaseURL = "byok_base_url"
@@ -136,7 +134,7 @@ struct NativeSettings: Codable, Equatable {
         stylePreferences: [String: [String]] = [:],
         screenContextDenylist: [String] = ContextPolicy.defaultDenylist,
         textboxContext: Bool = false,
-        meetingCapture: Bool = false,
+        meetingCapture: Bool = true,
         meetingAutoStart: Bool = false,
         checkForUpdates: Bool = true,
         updateAnnounced: String = "",
@@ -148,7 +146,6 @@ struct NativeSettings: Codable, Equatable {
         showInDock: Bool = true,
         showIdleCapsule: Bool = true,
         backgroundAudio: BackgroundAudio = .lower,
-        tapToToggle: Bool = false,
         writingModesByApp: [String: String] = [:],
         byokEnabled: Bool = false,
         byokBaseURL: String = "",
@@ -182,7 +179,6 @@ struct NativeSettings: Codable, Equatable {
         self.showInDock = showInDock
         self.showIdleCapsule = showIdleCapsule
         self.backgroundAudio = backgroundAudio
-        self.tapToToggle = tapToToggle
         self.writingModesByApp = writingModesByApp
         self.byokEnabled = byokEnabled
         self.byokBaseURL = byokBaseURL
@@ -226,9 +222,18 @@ struct NativeSettings: Codable, Equatable {
             ?? ContextPolicy.defaultDenylist
         // Off until the user turns it on: it reads what they are typing.
         textboxContext = try values.decodeIfPresent(Bool.self, forKey: .textboxContext) ?? false
-        meetingCapture = try values.decodeIfPresent(Bool.self, forKey: .meetingCapture) ?? false
-        meetingAutoStart =
+        // Every save writes every key, so a stored false before schema 3 is the old
+        // off-by-default, indistinguishable from a choice. Those files turn it on once;
+        // the next save writes schema 3, and from then on a false is the owner's.
+        // When the migration is what turns detection on, auto-start goes off with it: an
+        // owner who once enabled auto-start and then switched detection off must not start
+        // recording calls unprompted after the upgrade (they can turn it back on).
+        let storedCapture = try values.decodeIfPresent(Bool.self, forKey: .meetingCapture)
+        let storedAutoStart =
             try values.decodeIfPresent(Bool.self, forKey: .meetingAutoStart) ?? false
+        let forcedOn = storedSchema < 3 && storedCapture != true
+        meetingCapture = storedSchema < 3 ? true : (storedCapture ?? true)
+        meetingAutoStart = forcedOn ? false : storedAutoStart
         checkForUpdates = try values.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? true
         updateAnnounced =
             try values.decodeIfPresent(String.self, forKey: .updateAnnounced) ?? ""
@@ -248,9 +253,7 @@ struct NativeSettings: Codable, Equatable {
             try values.decodeIfPresent(Bool.self, forKey: .showIdleCapsule) ?? true
         backgroundAudio =
             (try? values.decodeIfPresent(String.self, forKey: .backgroundAudio))
-            .flatMap { $0 }.flatMap(BackgroundAudio.init(rawValue:)) ?? .lower
-        tapToToggle = (try? values.decodeIfPresent(Bool.self, forKey: .tapToToggle)) ?? false
-        // Unknown modes are dropped on read, so a hand edit cannot pin a mode the
+            .flatMap { $0 }.flatMap(BackgroundAudio.init(rawValue:)) ?? .lower        // Unknown modes are dropped on read, so a hand edit cannot pin a mode the
         // refiner does not have.
         writingModesByApp =
             ((try? values.decodeIfPresent([String: String].self, forKey: .writingModesByApp))
@@ -663,6 +666,12 @@ final class NativeAppStore: ObservableObject {
     @Published private(set) var macros: [PhononMacro] = []
     /// Recorded meetings under Meetings/, newest first.
     @Published private(set) var meetings: [MeetingNote] = []
+    /// Meetings being transcribed, queued or failed this session (`MeetingTranscriber`).
+    @Published var meetingTranscription: [String: MeetingTranscriptionJob] = [:]
+    /// The meeting being recorded now, if any.
+    @Published var recordingMeetingID: String?
+    /// The Notes page's Transcribe button: transcribe the meeting in this folder.
+    var onTranscribeMeeting: ((URL) -> Void)?
     @Published var engineReady = false
     @Published var engineMessage = "Loading local models"
     @Published var selectedMicrophone = "Resolving…"
@@ -770,9 +779,33 @@ final class NativeAppStore: ObservableObject {
     // MARK: Meetings
 
     func loadMeetings() {
-        meetings = MeetingNote.loadAll(
-            from: supportDirectory.appendingPathComponent("Meetings", isDirectory: true),
-            fileManager: fileManager)
+        meetings = MeetingNote.loadAll(from: meetingsDirectory, fileManager: fileManager)
+    }
+
+    var meetingsDirectory: URL {
+        supportDirectory.appendingPathComponent("Meetings", isDirectory: true)
+    }
+
+    func transcriptState(_ note: MeetingNote) -> NoteTranscriptState {
+        NoteTranscriptState.resolve(
+            transcript: note.transcript, job: meetingTranscription[note.id],
+            savedError: note.transcriptError, recording: recordingMeetingID == note.id)
+    }
+
+    /// The Transcribe button. Never for the meeting being recorded (or still closing its last
+    /// chunks): its metadata is not final until the recording has fully stopped.
+    func transcribeMeeting(_ note: MeetingNote) {
+        guard recordingMeetingID != note.id else { return }
+        onTranscribeMeeting?(note.directory)
+    }
+
+    /// A recording has fully stopped (chunks closed, metadata.json final): it is no longer the
+    /// one recording (unless a newer one already is), it is queued for transcription, and the
+    /// Notes list picks it up, so an open Notes page shows it transcribing.
+    func meetingRecordingFinished(directory: URL) {
+        if recordingMeetingID == directory.lastPathComponent { recordingMeetingID = nil }
+        onTranscribeMeeting?(directory)
+        loadMeetings()
     }
 
     // MARK: Dictionary chips
