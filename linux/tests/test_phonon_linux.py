@@ -35,3 +35,24 @@ def test_implausible_refinement_falls_back_to_transcript():
          patch.object(dictation_text, "apply_custom_commands", side_effect=lambda x: (x, {})) as commands:
         dictation_text.prepare_text(raw, False, False, False)
     commands.assert_called_once_with(raw)
+
+
+def test_refiner_restores_dropped_openers_conservatively():
+    restore = dictation_text.restore_opening_word
+    assert restore('Okay, the build is ready', 'The build is ready') == 'Okay, the build is ready'
+    assert restore('Well, Alice can help', 'Alice can help') == 'Well, Alice can help'
+    assert restore('And we can go', 'And we can go') == 'And we can go'
+    assert restore('Okay, cancel that', 'Cancel') == 'Cancel'
+    assert restore('So we can go', 'We can go') == 'We can go'
+
+
+def test_restoration_runs_after_refiner_output_check():
+    class Engine:
+        def correct(self, text, timeout):
+            return 'The build is ready'
+
+    with patch.object(dictation_text.live, 'ai_corrections', True), \
+         patch.object(dictation_text.live, 'ai_engine', Engine()), \
+         patch.object(dictation_text, 'apply_custom_commands', side_effect=lambda x: (x, {})) as commands:
+        dictation_text.prepare_text('Okay, the build is ready', False, False, False)
+    commands.assert_called_once_with('Okay, the build is ready')

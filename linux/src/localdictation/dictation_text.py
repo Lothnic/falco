@@ -2,6 +2,8 @@
 and Your Words (custom_commands.py), the spoken-command rules, filler words,
 numbers as digits, punctuation, plain text for terminals and code editors,
 and the AI's self-corrections when they're on."""
+import re
+
 from . import custom_commands, focused_window, keyboard_output
 from . import live_settings as live
 from . import recording_state as rs
@@ -15,6 +17,30 @@ from .normalize import (
 )
 
 logger = setup_logger(__name__)
+
+
+def restore_opening_word(raw: str, refined: str) -> str:
+    """Keep a spoken discourse opener when cleanup dropped it.
+
+    Restrict this to unambiguous first words and avoid masking collapsed
+    single-word model output. Preserve capitalization when a proper name is
+    possible; only lowercase a word observed in lowercase in the transcript.
+    """
+    source = raw.split()
+    output = refined.split()
+    if len(source) < 2 or len(output) < 2:
+        return refined
+    opener = source[0].rstrip(',.').lower()
+    if opener not in {'okay', 'ok', 'well', 'and', 'now'}:
+        return refined
+    first = output[0].strip('.,!?;:\"\'').lower()
+    if first == opener or (first in {'ok', 'okay'} and opener in {'ok', 'okay'}):
+        return refined
+    body = refined.lstrip()
+    word = re.match(r'[A-Za-z]+', body)
+    if word and word.group().istitle() and re.search(r'\b' + re.escape(word.group().lower()) + r'\b', raw):
+        body = body[0].lower() + body[1:]
+    return ('Okay' if opener in {'ok', 'okay'} else opener.capitalize()) + ', ' + body
 
 
 def apply_custom_commands(text: str) -> tuple[str, dict[str, str]]:
@@ -80,7 +106,7 @@ def prepare_text(raw: str, smart_quotes: bool, auto_period: bool, auto_space: bo
         before = len(raw.split())
         after = len(candidate.split()) if candidate else 0
         if candidate and after <= 2 * before and (before <= 8 or after >= 0.4 * before):
-            raw = candidate
+            raw = restore_opening_word(raw, candidate)
         else:
             logger.info("Refiner unavailable or output failed length guard; using transcript")
     # Apply custom voice commands (phrase → replacement)
