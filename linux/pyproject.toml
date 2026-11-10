@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "phonon-linux-community"
+name = "falco-dictation"
 version = "0.1.0"
 description = "Voice dictation for Linux: hold a key, talk, and your words are typed for you."
 authors = ["Ron"]
@@ -40,7 +40,7 @@ text2num = "^3.1"
 # GPU (RTX 4070 SUPER). Removing it cut the packaged size by ~170 MB (.deb 302 MB → 133 MB).
 
 [tool.poetry.scripts]
-phonon-linux = "localdictation.tray:main"
+falco = "localdictation.tray:main"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.1"

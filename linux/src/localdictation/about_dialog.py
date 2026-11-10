@@ -1,4 +1,4 @@
-"""The About Phonon Linux window: the icon, name and version, the credits the
+"""The About Falco window: the icon, name and version, the credits the
 models' licences ask for, links to the website, the code and the changelog,
 and this version's release notes, fetched from GitHub while it's open."""
 import threading
@@ -32,7 +32,7 @@ def about_icon_source(theme_has_icon):
 
 
 def _about_icon():
-    """The Phonon Linux icon at 64 px for the About dialog, or None."""
+    """The Falco icon at 64 px for the About dialog, or None."""
     theme = Gtk.IconTheme.get_default()
     source = about_icon_source(theme.has_icon if theme else (lambda name: False))
     if source is None:
@@ -51,14 +51,14 @@ _open_dialog = None
 
 
 def show_about_dialog():
-    """Open About Phonon Linux, and fetch this version's release notes into it.
+    """Open About Falco, and fetch this version's release notes into it.
     An open About is brought forward instead, without asking GitHub again."""
     global _open_dialog
     if _open_dialog is not None:
         from .raise_window import raise_window
         raise_window(_open_dialog)
         return
-    dialog = Gtk.Dialog(title="About Phonon Linux", flags=Gtk.DialogFlags.MODAL)
+    dialog = Gtk.Dialog(title="About Falco", flags=Gtk.DialogFlags.MODAL)
     dialog.set_default_size(500, 450)
     dialog.set_position(Gtk.WindowPosition.CENTER)
     dialog.set_keep_above(True)
@@ -93,7 +93,7 @@ def _forget_dialog(_dialog):
 
 
 def _header(content):
-    """The icon, name, version, former name and what Phonon Linux does."""
+    """The icon, name, version, former name and what Falco does."""
     from . import __version__
     try:
         icon = _about_icon()
@@ -103,7 +103,7 @@ def _header(content):
         logger.info(f"Could not load icon for About dialog: {e}")
 
     title_label = Gtk.Label()
-    title_label.set_markup('<span size="x-large"><b>Phonon Linux</b></span>')
+    title_label.set_markup('<span size="x-large"><b>Falco</b></span>')
     content.pack_start(title_label, False, False, 0)
     content.pack_start(Gtk.Label(label=f"Version {__version__}"), False, False, 0)
 
@@ -121,7 +121,7 @@ def _header(content):
 
 
 def _credits(content):
-    """The copyright and licence, and the credits for what Phonon Linux runs."""
+    """The copyright and licence, and the credits for what Falco runs."""
     copyright_label = Gtk.Label()
     copyright_label.set_markup('<span size="small">© 2024-2026 Ron Brand • MIT License</span>')
     content.pack_start(copyright_label, False, False, 0)
@@ -160,7 +160,7 @@ def _links(content):
     links_box.set_halign(Gtk.Align.CENTER)
     links_box.set_margin_top(10)
     for uri, label in (("https://tuxtalk.app/", "Website"),
-                       ("https://github.com/ronb1964/Phonon Linux", "GitHub Repository"),
+                       ("https://github.com/Lothnic/falco", "GitHub Repository"),
                        (update_checker.get_releases_url(), "View Full Changelog")):
         links_box.pack_start(Gtk.LinkButton.new_with_label(uri, label), False, False, 0)
     content.pack_start(links_box, False, False, 0)

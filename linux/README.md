@@ -1,6 +1,6 @@
-# Phonon Linux
+# Falco
 
-An experimental community Linux dictation app built on [TuxTalk](https://github.com/ronb1964/TuxTalk), using the separately distributed [Phonon refiner](https://huggingface.co/Infatoshi/phonon-refiner-1.7b) for local transcript cleanup. This is not an official Phonon or TuxTalk release. The current interface is adapted from TuxTalk; a visual redesign can come later.
+An experimental community Linux dictation app built on [TuxTalk](https://github.com/ronb1964/TuxTalk), using the separately distributed [Phonon refiner](https://huggingface.co/Infatoshi/phonon-refiner-1.7b) for local transcript cleanup. This is not an official Phonon or TuxTalk release. Its tray and service are adapted from TuxTalk, with a Rune dashboard and recording overlay.
 
 The default speech model is Parakeet Ultra v3. The Phonon refiner is the default cleanup model and is English-only. It is downloaded separately when enabled; until its download is installed and it is loaded, dictation uses the unrefined transcript. The speech and cleanup model downloads total roughly 1.7 GB. Processing is local after downloading.
 
@@ -12,7 +12,7 @@ Install the system dependencies (package names vary on other distributions):
 sudo apt install python3 python3-venv python3-pip python3-gi python3-gi-cairo python3-dbus python3-evdev gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1 libportaudio2 wl-clipboard
 ```
 
-To include the Rune window and overlay, first build both binaries from the repository root with `cargo build --release --locked --manifest-path linux/rune-overlay/Cargo.toml` (Rust 1.99.1 or newer is required). Then run `./install.sh` from this directory. It installs the source, Python dependencies, a `phonon-linux` command, and an application launcher in your user account. If the Rune binaries are present, the launcher opens the new dashboard; otherwise it starts the existing tray interface. Then start **Phonon Linux** from your applications. The first-run screens configure typing permissions, a hotkey and a speech model. In Preferences → Advanced, enable **Refine dictation with Phonon’s local model** to download and activate the refiner. Do not run this package at the same time as the earlier prototype: both can listen for the same hotkeys. The app needs access to keyboard events and virtual input on Wayland; the first-run screens can guide you through those permissions.
+To include the Rune window and overlay, first build both binaries from the repository root with `cargo build --release --locked --manifest-path linux/rune-overlay/Cargo.toml` (Rust 1.99.1 or newer is required). Then run `./install.sh` from this directory. It installs the source, Python dependencies, a `falco` command, and an application launcher in your user account. If the Rune binaries are present, the launcher opens the new dashboard; otherwise it starts the existing tray interface. Then start **Falco** from your applications. The first-run screens configure typing permissions, a hotkey and a speech model. In Preferences → Advanced, enable **Refine dictation with Phonon’s local model** to download and activate the refiner. Do not run this package at the same time as the earlier prototype: both can listen for the same hotkeys. The app needs access to keyboard events and virtual input on Wayland; the first-run screens can guide you through those permissions.
 
 For development, create a virtual environment with system site packages and run `python -m localdictation.tray`. The `localdictation` Python module name is an internal implementation detail.
 
@@ -38,7 +38,7 @@ To try it, install Rust 1.99.1 or newer and build the pinned Rune revision:
 ```sh
 cargo build --release --locked --manifest-path linux/rune-overlay/Cargo.toml
 # Install the app after building, or run the overlay alongside an existing installation:
-PHONON_RUNE_OVERLAY="$PWD/linux/rune-overlay/target/release/phonon-overlay" phonon-linux
+PHONON_RUNE_OVERLAY="$PWD/linux/rune-overlay/target/release/phonon-overlay" falco
 ```
 
 Run these commands from the repository root, after installing the app with

@@ -43,7 +43,7 @@ def snapshot():
                     recording=bool(status.get("recording")),
                     engine=str(status.get("engine", "")))
     except Exception:
-        data["error"] = "Dictation service is not available. Open Phonon Linux from your apps."
+        data["error"] = "Dictation service is not available. Open Falco from your apps."
     return data
 
 

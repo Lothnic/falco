@@ -8,7 +8,7 @@ Linux desktop (GNOME Wayland and X11 among the intended environments).
 
 ## People and purpose
 
-Phonon Linux helps a person dictate text into the application they are using. It listens through a shortcut, transcribes locally and refines the transcript with a model trained for dictation cleanup. The user wants the app to make dictation status, recent dictations, custom words and settings accessible together.
+Falco helps a person dictate text into the application they are using. It listens through a shortcut, transcribes locally and refines the transcript with a model trained for dictation cleanup. The user wants the app to make dictation status, recent dictations, custom words and settings accessible together.
 
 ## Capabilities and constraints
 

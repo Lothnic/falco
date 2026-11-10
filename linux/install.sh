@@ -2,7 +2,7 @@
 # Install the community Linux app in the current user's account.
 set -euo pipefail
 source_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-install_base="${PHONON_INSTALL_BASE:-$HOME/.local/share/phonon-linux-app}"
+install_base="${PHONON_INSTALL_BASE:-$HOME/.local/share/falco-app}"
 bin_dir="${PHONON_BIN_DIR:-$HOME/.local/bin}"
 desktop_dir="${PHONON_DESKTOP_DIR:-$HOME/.local/share/applications}"
 release_dir="$install_base/releases/0.1.0"
@@ -10,8 +10,8 @@ if [[ -e "$release_dir" ]]; then
     printf 'Install directory already exists: %s\nRemove or move it before reinstalling.\n' "$release_dir" >&2
     exit 1
 fi
-if [[ -e "$bin_dir/phonon-linux" || -L "$bin_dir/phonon-linux" || -e "$desktop_dir/phonon-linux-community.desktop" ]]; then
-    printf 'A phonon-linux command or launcher already exists. Move it before installing.\n' >&2
+if [[ -e "$bin_dir/falco" || -L "$bin_dir/falco" || -e "$desktop_dir/falco.desktop" ]]; then
+    printf 'A falco command or launcher already exists. Move it before installing.\n' >&2
     exit 1
 fi
 for module in gi dbus; do
@@ -57,11 +57,11 @@ RUNNER
     chmod 755 "$release_dir/run-ui.sh"
     launcher="$release_dir/run-ui.sh"
 fi
-ln -sfn "$launcher" "$bin_dir/phonon-linux"
-cat > "$desktop_dir/phonon-linux-community.desktop" <<DESKTOP
+ln -sfn "$launcher" "$bin_dir/falco"
+cat > "$desktop_dir/falco.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
-Name=Phonon Linux
+Name=Falco
 Comment=Local voice dictation and transcript cleanup
 Exec="$launcher"
 Icon=audio-input-microphone
@@ -69,5 +69,5 @@ Terminal=false
 Categories=Utility;Accessibility;
 StartupNotify=false
 DESKTOP
-printf '\nInstalled Phonon Linux. Start it from your applications or run %s/phonon-linux.\n' "$bin_dir"
+printf '\nInstalled Falco. Start it from your applications or run %s/falco.\n' "$bin_dir"
 printf 'On first run, download a speech model, then enable the Phonon refiner in Preferences → Advanced.\n'

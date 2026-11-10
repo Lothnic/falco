@@ -151,7 +151,7 @@ class PreferencesWindow:
         """Read the settings, build the window and show it."""
         ui_style.prefer_dark_theme()
 
-        self.window = Gtk.Window(title="TuxTalk Preferences")
+        self.window = Gtk.Window(title="Falco Preferences")
         self.window.set_name("preferences_window")
         # Size is set in create_ui (_fit_to_screen), once the content can be measured.
         self.window.set_position(Gtk.WindowPosition.CENTER)
@@ -331,7 +331,7 @@ class PreferencesWindow:
         vbox.set_margin_bottom(20)
 
         title = Gtk.Label()
-        title.set_markup("<big><b>TuxTalk Preferences</b></big>")
+        title.set_markup("<big><b>Falco Preferences</b></big>")
         vbox.pack_start(title, False, False, 0)
 
         vbox.pack_start(self._build_tabs(), True, True, 0)
@@ -339,7 +339,7 @@ class PreferencesWindow:
         from . import __version__
         version_label = Gtk.Label()
         version_label.set_markup(
-            f'<span size="small" color="#888888">TuxTalk v{__version__}</span>')
+            f'<span size="small" color="#888888">Falco v{__version__}</span>')
         version_label.set_halign(Gtk.Align.END)
         version_label.set_margin_top(5)
         version_label.set_margin_end(5)
@@ -394,7 +394,7 @@ class PreferencesWindow:
         help_btn = Gtk.Button(label="Help")
         help_btn.connect("clicked", self.on_help)
         help_btn.get_child().set_xalign(0.5)
-        help_btn.set_tooltip_text("Open TuxTalk help documentation")
+        help_btn.set_tooltip_text("Open Falco help documentation")
         button_box.pack_start(help_btn, False, False, 0)
 
         button_box.pack_start(Gtk.Label(), True, True, 0)     # the rest to the right
@@ -892,7 +892,7 @@ def main():
     # shared connection that already existed.
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
     import argparse
-    parser = argparse.ArgumentParser(description="TuxTalk Preferences")
+    parser = argparse.ArgumentParser(description="Falco Preferences")
     parser.add_argument("--tab", help="Tab to open initially",
                         choices=["general", "audio", "advanced", "words", "snippets",
                                  "commands", "stats", "updates", "backup"])

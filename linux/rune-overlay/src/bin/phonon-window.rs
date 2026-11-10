@@ -1,4 +1,4 @@
-//! Phonon Linux's dashboard. The Python bridge owns all service operations.
+//! Falco's dashboard. The Python bridge owns all service operations.
 use rune::tok::type_;
 use rune::{App, AppSpec, Color, Cx, El, ScrollSpec, TextEdit, col, el, row, text, text_input};
 use serde::Deserialize;
@@ -241,7 +241,7 @@ fn status(snapshot: &Snapshot, loaded: bool) -> (&'static str, &'static str, Col
     } else if !snapshot.connected {
         (
             "Unavailable",
-            "Open Phonon Linux to start the service",
+            "Open Falco to start the service",
             color(0.95, 0.66, 0.46),
         )
     } else if snapshot.recording {
@@ -601,7 +601,7 @@ fn view(s: &State, _: &mut Cx<State>) -> El {
                         .child(
                             col()
                                 .gap(3.0)
-                                .child(title("Phonon Linux"))
+                                .child(title("Falco"))
                                 .child(secondary("Voice typing")),
                         ),
                 )
@@ -688,7 +688,7 @@ fn main() {
                 s.page = Page::Settings;
             }),
         ],
-        ..AppSpec::new("Phonon Linux", (1000.0, 700.0), State::default, view)
+        ..AppSpec::new("Falco", (1000.0, 700.0), State::default, view)
     };
     if std::env::args().any(|a| matches!(a.as_str(), "--snap" | "--tree" | "--list-scenes")) {
         rune::run(spec);

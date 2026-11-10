@@ -77,7 +77,7 @@ class DictationTray(ServiceLifecycle, Presets):
             self.indicator.set_status(AppIndicator3.IndicatorStatus.PASSIVE)
             logger.info("GTK tray hidden (GNOME extension is active)")
 
-        self.indicator.set_title("TuxTalk")  # Set the app name
+        self.indicator.set_title("Falco")  # Set the app name
 
         # Track subprocess windows
         self.preferences_process = None
@@ -238,9 +238,9 @@ class DictationTray(ServiceLifecycle, Presets):
     def update_icon_status(self, is_running):
         """The icon for the service's state: running or stopped."""
         if is_running:
-            self.indicator.set_icon_full("microphone-sensitivity-high", "TuxTalk: Active")
+            self.indicator.set_icon_full("microphone-sensitivity-high", "Falco: Active")
         else:
-            self.indicator.set_icon_full("microphone-sensitivity-muted", "TuxTalk: Stopped")
+            self.indicator.set_icon_full("microphone-sensitivity-muted", "Falco: Stopped")
 
     def _emit_service_state_after_check(self):
         """Send the service's real state to the GNOME extension.
