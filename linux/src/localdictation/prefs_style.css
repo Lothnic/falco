@@ -1,0 +1,418 @@
+/* TuxTalk Preferences Stylesheet
+ *
+ * Accent colours come from the desktop theme via @theme_selected_bg_color,
+ * so TuxTalk follows the user's system accent instead of imposing its own.
+ * They were hardcoded to a slate blue (#5a8fb8), which looked wrong on any
+ * desktop not using a blue accent — on KDE Breeze with a green accent, every
+ * highlight in this window disagreed with the rest of the system.
+ *
+ * Every selector below is scoped to .talktype-prefs. That is required, not
+ * cosmetic: this sheet must be installed screen-wide to reach child widgets
+ * at all (a window-scoped provider does not), so without the scope it would
+ * restyle every other GTK window in the process. See prefs.py::_load_css and
+ * tests/test_prefs_stylesheet.py.
+ */
+
+/* Window background - clean dark (a Gtk.Dialog's node is "dialog") */
+window.talktype-prefs, dialog.talktype-prefs {
+    background: #1e1e1e;
+}
+
+/* Notebook tabs */
+.talktype-prefs notebook > header {
+    background: #252525;
+    border-bottom: 1px solid #3a3a3a;
+    padding: 8px;
+}
+
+.talktype-prefs notebook > header > tabs > tab {
+    background: transparent;
+    color: #ababab;
+    /* A faint outline, so the tabs read as tabs, not a row of words run
+       together (on Breeze dark especially). The header's own grey; no bottom
+       edge, the header's line is there. */
+    border: 1px solid #3a3a3a;
+    border-bottom-width: 0;
+    /* 18px, not 24: room for "Updates & Backup" at the same window width */
+    padding: 12px 18px;
+    margin: 0 4px;
+    border-radius: 6px 6px 0 0;
+    /* No transition here: Preferences picks its tab (--tab, tray -> Your
+       Stats) before the first frame, and on KDE a transition started then
+       never runs, leaving "General" highlighted over the Stats page. */
+    font-weight: 500;
+}
+
+.talktype-prefs notebook > header > tabs > tab:hover {
+    background: rgba(80, 140, 200, 0.15);
+    color: #d4d4d4;
+}
+
+.talktype-prefs notebook > header > tabs > tab:checked {
+    background: #2d2d2d;
+    color: shade(@theme_selected_bg_color, 1.4);
+    border-bottom: 2px solid @theme_selected_bg_color;
+    font-weight: 600;
+}
+
+/* Notebook content area */
+.talktype-prefs notebook > stack {
+    background: #1e1e1e;
+    padding: 20px;
+}
+
+/* Section frames */
+.talktype-prefs frame {
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    background: #252525;
+    padding: 16px;
+    margin: 8px 0;
+}
+
+.talktype-prefs frame > border {
+    border: none;
+}
+
+/* Frame labels (section headers) */
+.talktype-prefs frame > label {
+    color: shade(@theme_selected_bg_color, 1.4);
+    font-weight: 600;
+    font-size: 110%;
+    padding: 0 8px;
+}
+
+/* Regular labels */
+.talktype-prefs label {
+    color: #d4d4d4;
+}
+
+.talktype-prefs label:disabled {
+    color: #6a6a6a;
+}
+
+/* Buttons - clean professional style */
+.talktype-prefs button {
+    background: #3a3a3a;
+    color: #d4d4d4;
+    border: 1px solid #505050;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-weight: 500;
+    transition: all 150ms ease;
+}
+
+.talktype-prefs button:hover {
+    background: #454545;
+    border-color: @theme_selected_bg_color;
+}
+
+.talktype-prefs button:active {
+    background: #303030;
+}
+
+.talktype-prefs button:disabled {
+    background: #2a2a2a;
+    color: #5a5a5a;
+    border-color: #353535;
+}
+
+/* Suggested action buttons (Continue, OK, etc.) */
+.talktype-prefs button.suggested-action {
+    background: @theme_selected_bg_color;
+    color: @theme_selected_fg_color;
+    border-color: shade(@theme_selected_bg_color, 1.15);
+}
+
+.talktype-prefs button.suggested-action:hover {
+    background: shade(@theme_selected_bg_color, 1.15);
+    border-color: #7aafd8;
+}
+
+/* Destructive action buttons (Delete, Remove, etc.) */
+.talktype-prefs button.destructive-action {
+    background: #c24b4b;
+    border-color: #d25b5b;
+    /* Deliberately white, not @theme_selected_fg_color: this sits on the
+       destructive red above, not on the theme accent. */
+    color: white;
+}
+
+.talktype-prefs button.destructive-action:hover {
+    background: #d25b5b;
+    border-color: #e26b6b;
+}
+
+/* Flat buttons (secondary actions) */
+.talktype-prefs button.flat {
+    background: transparent;
+    border: 1px solid #505050;
+    color: shade(@theme_selected_bg_color, 1.4);
+}
+
+.talktype-prefs button.flat:hover {
+    background: rgba(90, 143, 184, 0.15);
+    border-color: @theme_selected_bg_color;
+}
+
+/* Links, in Help's text and as buttons: the theme's link blue was nearly
+   invisible on these dark backgrounds (Help's feedback link). */
+.talktype-prefs *:link,
+.talktype-prefs *:visited,
+.talktype-prefs button.link > label {
+    color: shade(@theme_selected_bg_color, 1.5);
+}
+
+/* Links (GtkLinkButton) are text, not boxes. The button rule above drew
+   "Full changelog" as a bordered button around underlined text. */
+.talktype-prefs button.link,
+.talktype-prefs button.link:hover {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0 4px;
+}
+
+/* Entry fields */
+.talktype-prefs entry {
+    background: #2a2a2a;
+    color: #d4d4d4;
+    border: 1px solid #454545;
+    border-radius: 4px;
+    padding: 8px 12px;
+    transition: all 150ms ease;
+}
+
+.talktype-prefs entry:focus {
+    background: #303030;
+    border-color: @theme_selected_bg_color;
+}
+
+.talktype-prefs entry:disabled {
+    background: #252525;
+    color: #5a5a5a;
+    border-color: #353535;
+}
+
+/* ComboBox / Dropdown */
+.talktype-prefs combobox button {
+    background: #2a2a2a;
+    border: 1px solid #454545;
+}
+
+.talktype-prefs combobox button:hover {
+    background: #303030;
+    border-color: @theme_selected_bg_color;
+}
+
+/* Checkboxes */
+.talktype-prefs checkbutton check {
+    background: #2a2a2a;
+    border: 2px solid #505050;
+    border-radius: 4px;
+    min-width: 20px;
+    min-height: 20px;
+}
+
+.talktype-prefs checkbutton check:checked {
+    background: @theme_selected_bg_color;
+    border-color: shade(@theme_selected_bg_color, 1.15);
+    -gtk-icon-source: -gtk-icontheme("object-select-symbolic");
+}
+
+.talktype-prefs checkbutton check:hover {
+    border-color: @theme_selected_bg_color;
+}
+
+/* Scale / Slider */
+.talktype-prefs scale trough {
+    background: #3a3a3a;
+    border: 1px solid #454545;
+    border-radius: 4px;
+    min-height: 8px;
+}
+
+.talktype-prefs scale highlight {
+    background: @theme_selected_bg_color;
+    border-radius: 4px;
+}
+
+.talktype-prefs scale slider {
+    background: white;
+    border: 2px solid @theme_selected_bg_color;
+    border-radius: 50%;
+    min-width: 18px;
+    min-height: 18px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.talktype-prefs scale slider:hover {
+    border-color: shade(@theme_selected_bg_color, 1.15);
+}
+
+/* Spinbutton */
+.talktype-prefs spinbutton {
+    background: #2a2a2a;
+    border: 1px solid #454545;
+    border-radius: 4px;
+    color: #d4d4d4;
+}
+
+.talktype-prefs spinbutton:focus {
+    border-color: @theme_selected_bg_color;
+}
+
+.talktype-prefs spinbutton button {
+    background: transparent;
+    border: none;
+    color: shade(@theme_selected_bg_color, 1.4);
+}
+
+.talktype-prefs spinbutton button:hover {
+    background: rgba(90, 143, 184, 0.2);
+}
+
+/* Progress bar */
+.talktype-prefs progressbar trough {
+    background: #3a3a3a;
+    border: 1px solid #454545;
+    border-radius: 4px;
+    min-height: 8px;
+}
+
+.talktype-prefs progressbar progress {
+    background: @theme_selected_bg_color;
+    border-radius: 4px;
+}
+
+/* Scrollbars */
+.talktype-prefs scrollbar {
+    background: transparent;
+}
+
+.talktype-prefs scrollbar slider {
+    background: rgba(90, 143, 184, 0.3);
+    border-radius: 8px;
+    min-width: 12px;
+    min-height: 40px;
+}
+
+.talktype-prefs scrollbar slider:hover {
+    background: rgba(90, 143, 184, 0.5);
+}
+
+/* Separator */
+.talktype-prefs separator {
+    background: #3a3a3a;
+    min-width: 1px;
+    min-height: 1px;
+}
+
+/* Dim text */
+.talktype-prefs .dim-label {
+    opacity: 0.7;
+}
+
+/* Section headers should stand out more */
+.talktype-prefs notebook > stack > grid > label:first-child {
+    color: shade(@theme_selected_bg_color, 1.4);
+    font-weight: 600;
+}
+
+/* ===== RECORDING QUALITY GRADE LABELS ===== */
+.talktype-prefs .level-too-quiet {
+    color: #d25b5b;
+    font-weight: 600;
+}
+
+.talktype-prefs .level-good {
+    color: #6db896;
+    font-weight: 600;
+}
+
+.talktype-prefs .level-too-loud,
+.talktype-prefs .level-noisy {
+    color: #e6aa3c;
+    font-weight: 600;
+}
+
+/* "More below": GTK draws a scrolled page's undershoot at an edge that has
+   more content past it, and only then. A fade into the page colour there,
+   so a page that happens to end on a row boundary doesn't look finished.
+   Drawing only: the controls under it still take clicks. */
+.talktype-prefs scrolledwindow undershoot.bottom {
+    background-color: transparent;
+    /* Strong enough to notice, never solid: 36 px of light fade went
+       unnoticed, 80 px solid at the edge hid the last row, 70 px at 85%
+       leaves it readable but clearly slipping under the edge.
+       Preferences always uses its own dark colours, so one tuning fits all. */
+    background-image: linear-gradient(to top, rgba(30, 30, 30, 0.85) 0%,
+                                      rgba(30, 30, 30, 0.55) 40%, rgba(30, 30, 30, 0) 100%);
+    background-size: 100% 70px;
+    background-repeat: no-repeat;
+    background-position: center bottom;
+    border: none;
+    box-shadow: none;
+}
+
+/* Cards (cards.py): every tab of Help and the Voice Commands window. One
+   colour per group of commands, which each Help tab borrows (help_pages.TAB_LOOK:
+   some tabs share one), so each heading stands out from what's under it. */
+.talktype-prefs .tt-card {
+    background: #252525;
+    border: 1px solid #3a3a3a;
+    border-radius: 10px;
+    margin-bottom: 12px;
+}
+
+/* A card, or the text in it, has the keyboard focus (Tab moves card by
+   card). */
+.talktype-prefs .tt-card-focus:focus > .tt-card,
+.talktype-prefs .tt-card.tt-has-focus {
+    border-color: #8ab4f8;
+    box-shadow: 0 0 0 1px #8ab4f8;
+}
+
+.talktype-prefs .tt-card-head {
+    border-radius: 9px 9px 0 0;
+    padding: 8px 14px;
+}
+
+.talktype-prefs .tt-card-row {
+    border-top: 1px solid #333333;
+    padding: 6px 14px;
+}
+
+.talktype-prefs .tt-say { color: #f2f2f2; }
+.talktype-prefs .tt-does { color: #b4b4b4; }
+.talktype-prefs .tt-note { color: #969696; font-size: 92%; }
+.talktype-prefs .tt-intro { margin-bottom: 8px; }
+.talktype-prefs .tt-page-title { margin: 2px 0 8px 2px; }
+.talktype-prefs .tt-card-note { opacity: 0.75; }
+.talktype-prefs .tt-group-title { margin: 14px 0 6px 2px; }
+
+.talktype-prefs .tt-labs {
+    border: 1px solid alpha(#ffffff, 0.35);
+    border-radius: 6px;
+    padding: 1px 8px;
+    font-size: 88%;
+}
+
+.talktype-prefs .tt-card-head.tt-dictation { background: #1d3a5c; }
+.talktype-prefs .tt-card-head.tt-fixing { background: #4a3410; }
+.talktype-prefs .tt-card-head.tt-editing { background: #24401a; }
+.talktype-prefs .tt-card-head.tt-apps { background: #362c5c; }
+.talktype-prefs .tt-card-head.tt-keys { background: #12443b; }
+.talktype-prefs .tt-card-head.tt-sound { background: #4d2416; }
+.talktype-prefs .tt-dictation label, .talktype-prefs .tt-dictation image,
+.talktype-prefs label.tt-dictation { color: #9ec9f5; }
+.talktype-prefs .tt-fixing label, .talktype-prefs .tt-fixing image,
+.talktype-prefs label.tt-fixing { color: #f5c87a; }
+.talktype-prefs .tt-editing label, .talktype-prefs .tt-editing image,
+.talktype-prefs label.tt-editing { color: #a8d88a; }
+.talktype-prefs .tt-apps label, .talktype-prefs .tt-apps image,
+.talktype-prefs label.tt-apps { color: #c3b8f5; }
+.talktype-prefs .tt-keys label, .talktype-prefs .tt-keys image,
+.talktype-prefs label.tt-keys { color: #8fdcc5; }
+.talktype-prefs .tt-sound label, .talktype-prefs .tt-sound image,
+.talktype-prefs label.tt-sound { color: #f3a98d; }

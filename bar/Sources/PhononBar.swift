@@ -370,26 +370,6 @@ struct HoldKeyEdges {
     mutating func reset() { isDown = false }
 }
 
-/// Two lone taps of the hold key close together are someone trying to start
-/// dictation with a tap (issue #21): each one recorded a fraction of a second
-/// that the speech gate threw away, and nothing told them to hold the key.
-struct LoneTapHint {
-    static let windowNs: UInt64 = 6_000_000_000
-    static let cooldownNs: UInt64 = 600_000_000_000
-
-    private var lastTapNs: UInt64?
-    private var shownNs: UInt64?
-
-    /// Returns true when the hint should show now.
-    mutating func noteLoneTap(at now: UInt64) -> Bool {
-        defer { lastTapNs = now }
-        guard let last = lastTapNs, now >= last, now - last <= Self.windowNs else { return false }
-        if let shown = shownNs, now >= shown, now - shown < Self.cooldownNs { return false }
-        shownNs = now
-        return true
-    }
-}
-
 /// macOS's own use of the Globe key (System Settings > Keyboard > "Press 🌐 key to",
 /// `com.apple.HIToolbox` `AppleFnUsageType`): 0 does nothing, 1 changes the input
 /// source, 2 shows emoji, 3 starts Apple's dictation. Anything but 0 also fires on
@@ -412,18 +392,38 @@ enum GlobeKeySetting {
     }
 }
 
-/// Tap and double-tap logic for a hold-to-talk key, fed raw key-down and
-/// key-up events with monotonic nanosecond timestamps.
+/// The menu-bar title. At the menu font's 13 pt the "ϕ" read as too small next to
+/// the system icons, so the glyph is drawn larger and the marks after it (●, …, ⚠)
+/// stay at menu size. At 19 pt the glyph is about as tall as the Wi-Fi icon.
+enum StatusTitle {
+    static let glyphSize: CGFloat = 19
+    static let markSize: CGFloat = 13
+
+    static func attributed(_ text: String) -> NSAttributedString {
+        let out = NSMutableAttributedString()
+        for (index, character) in text.enumerated() {
+            let isGlyph = index == 0
+            out.append(
+                NSAttributedString(
+                    string: String(character),
+                    attributes: [
+                        .font: NSFont.systemFont(
+                            ofSize: isGlyph ? glyphSize : markSize,
+                            weight: isGlyph ? .medium : .regular),
+                        .foregroundColor: NSColor.labelColor,
+                    ]))
+        }
+        return out
+    }
+}
+
+/// Hold or tap for a dictation key, fed raw key-down and key-up events with
+/// monotonic nanosecond timestamps. The rules match `crates/phonon-hotkey`.
 ///
 /// Key-down always starts a recording, so a hold has no latency and release
-/// stops it. A release inside `tapMaxNs` is a tap. A second tap whose key-down
-/// lands inside `doubleTapWindowNs` of the first release latches the recording
-/// on; while latched the next key-down stops it. A lone tap is a short capture
-/// that the no-speech gate discards downstream.
-///
-/// With `tapToggles` (settings.json `tap_to_toggle`, issue #34) a single tap
-/// latches instead: the recording that began at key-down keeps going, and the
-/// next key-down stops it. A hold is still push-to-talk.
+/// stops it (push-to-talk). A release inside `tapMaxNs` is a tap, and a tap
+/// latches the recording on (press to toggle): the recording that began at
+/// key-down keeps going, and the next key-down stops it. There is no double-tap.
 struct HoldKeyTapLatch {
     enum Action: Equatable {
         case start
@@ -432,25 +432,13 @@ struct HoldKeyTapLatch {
     }
 
     static let defaultTapMaxNs: UInt64 = 250_000_000
-    static let defaultDoubleTapWindowNs: UInt64 = 350_000_000
 
     let tapMaxNs: UInt64
-    let doubleTapWindowNs: UInt64
-    var tapToggles = false
     private(set) var latched = false
-    /// The last release was a lone tap that stopped a recording (a double-tap
-    /// may still follow). Tap-to-toggle never leaves one.
-    var awaitingSecondTap: Bool { lastTapUpAt != nil }
     private var downAt: UInt64?
-    private var lastTapUpAt: UInt64?
-    private var secondTapCandidate = false
 
-    init(
-        tapMaxNs: UInt64 = HoldKeyTapLatch.defaultTapMaxNs,
-        doubleTapWindowNs: UInt64 = HoldKeyTapLatch.defaultDoubleTapWindowNs
-    ) {
+    init(tapMaxNs: UInt64 = HoldKeyTapLatch.defaultTapMaxNs) {
         self.tapMaxNs = tapMaxNs
-        self.doubleTapWindowNs = doubleTapWindowNs
     }
 
     mutating func keyDown(at now: UInt64) -> Action {
@@ -458,8 +446,6 @@ struct HoldKeyTapLatch {
             reset()
             return .stop
         }
-        secondTapCandidate = lastTapUpAt.map { now >= $0 && now - $0 <= doubleTapWindowNs } ?? false
-        lastTapUpAt = nil
         downAt = now
         return .start
     }
@@ -468,22 +454,84 @@ struct HoldKeyTapLatch {
         // A key-up with no matching key-down follows a latched stop.
         guard let downAt else { return .none }
         self.downAt = nil
-        let isTap = now >= downAt && now - downAt <= tapMaxNs
-        if isTap && (secondTapCandidate || tapToggles) {
-            secondTapCandidate = false
+        if now >= downAt && now - downAt <= tapMaxNs {
             latched = true
             return .none
         }
-        secondTapCandidate = false
-        lastTapUpAt = isTap ? now : nil
         return .stop
     }
 
     mutating func reset() {
         latched = false
         downAt = nil
-        lastTapUpAt = nil
-        secondTapCandidate = false
+    }
+}
+
+/// When a latched dictation (one tap of fn or Right Option) stops on its own, so a stray tap
+/// cannot leave the mic recording until the next press. A held key never stops this way (its
+/// release does), and neither do Ctrl+Space or a meeting.
+///
+/// Speech is the capsule's `VoiceDetector` (the level meter against the room's floor), the
+/// same signal the live-text dot answers to, but only once it has lasted `speechRunSeconds`
+/// without a break: a keystroke or a click near the mic is one or two meter readings.
+/// Timestamps are seconds on any monotonic clock; the caller supplies them.
+struct LatchAutoStop {
+    enum Decision: Equatable {
+        case keepRecording
+        /// Nothing was said since the start: drop it, with no paste and no card.
+        case discard
+        /// Speech, then a long silence: stop and commit as the next press would.
+        case commit
+    }
+
+    // The two limits live here and nowhere else.
+    /// No speech at all this long after the start. Someone who tapped on purpose starts
+    /// talking within a second or two (the capsule and the start cue say it is listening);
+    /// 8 s leaves room to gather a thought and still frees the mic soon after a stray tap.
+    static let noSpeechSeconds: TimeInterval = 8
+    /// Silence this long after speech. Someone dictating a long prompt stops to read or think
+    /// for tens of seconds, and a commit pastes into whatever is focused, so this is a full
+    /// minute; someone who has walked away still gets their words committed.
+    static let silenceAfterSpeechSeconds: TimeInterval = 60
+    /// Voice this long without a break counts as speech: about a syllable, and longer than
+    /// a keystroke. Time, not a count of readings, because the meter's rate follows the
+    /// device's buffer size.
+    static let speechRunSeconds: TimeInterval = 0.15
+
+    let startedAt: TimeInterval
+    private(set) var lastSpeechAt: TimeInterval?
+    private var voiceSince: TimeInterval?
+    private var lastVoiceAt: TimeInterval?
+
+    init(startedAt: TimeInterval) {
+        self.startedAt = startedAt
+    }
+
+    var heardSpeech: Bool { lastSpeechAt != nil }
+
+    /// One reading of the voice detector.
+    mutating func note(voice: Bool, at now: TimeInterval) {
+        guard voice else {
+            voiceSince = nil
+            return
+        }
+        let since = voiceSince ?? now
+        voiceSince = since
+        lastVoiceAt = now
+        if now - since >= Self.speechRunSeconds { lastSpeechAt = now }
+    }
+
+    func decision(at now: TimeInterval) -> Decision {
+        // Voice that has just begun and not yet lasted `speechRunSeconds` holds a limit
+        // off, so talking right at the limit is not cut. Only while readings keep
+        // arriving: a mic that stopped mid-voice must not hold it off for ever.
+        if voiceSince != nil, let lastVoiceAt, now - lastVoiceAt < 1 {
+            return .keepRecording
+        }
+        if let lastSpeechAt {
+            return now - lastSpeechAt >= Self.silenceAfterSpeechSeconds ? .commit : .keepRecording
+        }
+        return now - startedAt >= Self.noSpeechSeconds ? .discard : .keepRecording
     }
 }
 
@@ -2175,7 +2223,9 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var fnEdges = HoldKeyEdges()
     private var fnTapLatch = HoldKeyTapLatch()
     private var optionTapLatch = HoldKeyTapLatch()
-    private var loneTapHint = LoneTapHint()
+    /// Hears speech from the start of every dictation; acted on only once a tap latched it.
+    private var latchAutoStop = LatchAutoStop(startedAt: 0)
+    private var latchAutoStopTimer: Timer?
     /// Times macOS disabled the event tap (a lost key release is likely each time).
     private var eventTapDisables = 0
     private var hotkeyRepresses = 0
@@ -2229,6 +2279,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         store: appStore, keyWatch: editKeyWatch,
         send: { [weak self] command in self?.engine.send(command) })
     private lazy var meetings = MeetingController(store: appStore)
+    private let meetingTranscriber = MeetingTranscriber()
     private lazy var newMicrophones = NewMicrophoneController(store: appStore)
     private var meetingMenuItem: NSMenuItem?
     private lazy var updates = UpdateController(store: appStore)
@@ -2246,10 +2297,6 @@ final class AppController: NSObject, NSApplicationDelegate {
         }
         appStore.onPermissionsRefresh = { [weak self] in
             self?.refreshPermissionDependentServices()
-        }
-        notPasted.onOpenSettings = { [weak self] in
-            self?.notPasted.dismiss()
-            self?.showSettings()
         }
         state.streamingPreviewEnabled = appStore.settings.streaming
         state.showWhenIdle = appStore.settings.showIdleCapsule
@@ -2301,6 +2348,18 @@ final class AppController: NSObject, NSApplicationDelegate {
         meetings.onRecordingChanged = { [weak self] app in self?.meetingRecordingChanged(app) }
         meetings.onFlowChanged = { [weak self] flow in self?.meetingFlowChanged(flow) }
         meetings.refresh()
+        // Meeting transcripts: after each recording stops, from the Notes button, and at
+        // launch for any a quit interrupted. Spans go through the engine's meeting queue.
+        meetingTranscriber.send = { [weak self] command in self?.engine.send(command) }
+        meetingTranscriber.onJobsChanged = { [weak self] jobs in
+            self?.appStore.meetingTranscription = jobs
+        }
+        meetingTranscriber.onFinished = { [weak self] _ in self?.appStore.loadMeetings() }
+        // From the Notes button and from `meetingRecordingFinished` (a recording that stopped).
+        appStore.onTranscribeMeeting = { [weak self] directory in
+            self?.meetingTranscriber.enqueue(directory: directory)
+        }
+        meetingTranscriber.resumePending(in: appStore.meetingsDirectory)
 
         // A competitor quit with consent leaves Phonon's tap in place; re-install
         // it so it sits at the head of the tap chain (SPEC step 5).
@@ -2325,6 +2384,10 @@ final class AppController: NSObject, NSApplicationDelegate {
         updates.isBusy = { [weak self] in
             guard let self else { return false }
             return self.isRecording || self.processing
+        }
+        updates.showMessage = { [weak self] title, detail, action, perform in
+            self?.notPasted.showMessage(
+                title: title, detail: detail, action: action, perform: perform)
         }
         updates.onAvailableChanged = { [weak self] update in
             self?.updateMenuItem?.isHidden = update == nil
@@ -2489,7 +2552,7 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     private func setupStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.title = "ϕ"
+        item.button?.attributedTitle = StatusTitle.attributed("ϕ")
         item.button?.toolTip = "Phonon"
         let menu = NSMenu()
         let attention = NSMenuItem(title: "", action: #selector(showMainWindow), keyEquivalent: "")
@@ -2556,7 +2619,8 @@ final class AppController: NSObject, NSApplicationDelegate {
         let items = appStore.permissionAttention
         lastPermissionState = items
         let blocking = items.first(where: \.blocksDictation)
-        statusItem?.button?.title = blocking == nil ? statusBase : statusBase + " ⚠"
+        statusItem?.button?.attributedTitle = StatusTitle.attributed(
+            blocking == nil ? statusBase : statusBase + " ⚠")
         statusItem?.button?.toolTip = blocking.map { "Phonon: \($0.title)" } ?? "Phonon"
         if let first = blocking ?? items.first {
             attentionMenuItem?.title = first.menuTitle
@@ -2689,6 +2753,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private func recoverFromEngineExit() {
         guard !terminating else { return }
         enginesReady = false
+        meetingTranscriber.setEngineReady(false)
         appStore.engineReady = false
         appStore.engineMessage = "Engine restarting"
         streamActive = false
@@ -2741,6 +2806,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                 self?.modelStartupState.hideLoader()
                 self?.modelStartupWindow?.orderOut(nil)
             }
+            meetingTranscriber.setEngineReady(true)
             if isRecording && state.streamingPreviewEnabled && !streamActive {
                 startAsrStream()
             }
@@ -2894,6 +2960,8 @@ final class AppController: NSObject, NSApplicationDelegate {
             } else if kind == "edit" {
                 editLearning.handleEngineResult(ev)
             }
+        case "meeting_span":
+            meetingTranscriber.handle(ev)
         case "error":
             let msg = ev["msg"] as? String ?? "error"
             appStore.lastError = msg
@@ -3174,6 +3242,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                 self.state.level = a
                 self.checkMicSilence()
                 let voice = self.voiceDetector.isVoice(a)
+                self.latchAutoStop.note(voice: voice, at: ProcessInfo.processInfo.systemUptime)
                 if self.liveTextPass {
                     // the dot answers the voice at once, before any word is recognized
                     self.liveText.noteLevel(a)
@@ -3186,6 +3255,8 @@ final class AppController: NSObject, NSApplicationDelegate {
         }
         recordingStartedAt = Date()
         voiceDetector = VoiceDetector()
+        stopLatchAutoStop()
+        latchAutoStop = LatchAutoStop(startedAt: ProcessInfo.processInfo.systemUptime)
         // No buffers at all never calls onAmplitude, so check on a timer too.
         micSilenceCheck?.cancel()
         let check = DispatchWorkItem { [weak self] in self?.checkMicSilence() }
@@ -3214,6 +3285,13 @@ final class AppController: NSObject, NSApplicationDelegate {
             e2eTrace?.recordingStartedNs = DispatchTime.now().uptimeNanoseconds
         } catch {
             isRecording = false
+            // The engine heard `prewarm` and maybe `stream_start`: end both there.
+            if streamActive {
+                engine.send(["cmd": "stream_stop", "id": activeId ?? "p\(pass)"])
+                streamActive = false
+            } else {
+                engine.send(["cmd": "dictation_end", "id": activeId ?? "p\(pass)"])
+            }
             ducker.stop()
             hidePill()
             NSLog("mic: \(error.localizedDescription)")
@@ -3229,6 +3307,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         e2eTrace?.keyUpHandledNs = DispatchTime.now().uptimeNanoseconds
         isRecording = false
         processing = true
+        stopLatchAutoStop()
         ducker.stop()  // the audio comes back while the text is corrected
         micSilenceCheck?.cancel()
         if case .micSilent = notPasted.current { notPasted.dismiss() }
@@ -3284,6 +3363,8 @@ final class AppController: NSObject, NSApplicationDelegate {
                     NSLog(
                         "phonon: empty/short capture (\(captured.count) frames @ \(rate) Hz) — pass \(id)"
                     )
+                    // No WAV, so no transcribe: tell the engine the dictation is over.
+                    self.engine.send(["cmd": "dictation_end", "id": id])
                     // Stay visible briefly so it doesn't feel broken, then hide.
                     self.processing = false
                     self.hideAfter(0.25)
@@ -3291,6 +3372,79 @@ final class AppController: NSObject, NSApplicationDelegate {
                 }
                 self.activeWavPath = path
                 self.submitTranscribe(path: path, id: id)
+            }
+        }
+    }
+
+    /// Watch a dictation a tap just latched, until it stops (`LatchAutoStop`). A timer, not
+    /// the meter, because a mic that delivers no buffers never calls `onAmplitude`.
+    private func armLatchAutoStop() {
+        guard isRecording, latchAutoStopTimer == nil else { return }
+        latchAutoStopTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) {
+            [weak self] _ in
+            MainActor.assumeIsolated { self?.checkLatchAutoStop() }
+        }
+    }
+
+    private func stopLatchAutoStop() {
+        latchAutoStopTimer?.invalidate()
+        latchAutoStopTimer = nil
+    }
+
+    private func checkLatchAutoStop() {
+        guard isRecording, fnTapLatch.latched || optionTapLatch.latched else {
+            stopLatchAutoStop()
+            return
+        }
+        let decision = latchAutoStop.decision(at: ProcessInfo.processInfo.systemUptime)
+        guard decision != .keepRecording else { return }
+        // The key is up (it latched), so the next press must start, not stop.
+        fnTapLatch.reset()
+        optionTapLatch.reset()
+        switch decision {
+        case .commit:
+            NSLog(
+                "phonon: latched dictation silent for \(Int(LatchAutoStop.silenceAfterSpeechSeconds)) s after speech; stopping"
+            )
+            stopDictation(source: "latch-auto-stop")
+        case .discard:
+            NSLog(
+                "phonon: latched dictation heard no speech in \(Int(LatchAutoStop.noSpeechSeconds)) s; discarding"
+            )
+            discardDictation()
+        case .keepRecording:
+            break
+        }
+    }
+
+    /// End the open dictation as if it never started: no stop cue, no WAV, no transcription,
+    /// no paste and no card. For a latched dictation nobody spoke into.
+    private func discardDictation() {
+        guard isRecording else { return }
+        isRecording = false
+        stopLatchAutoStop()
+        ducker.stop()
+        micSilenceCheck?.cancel()
+        if case .micSilent = notPasted.current { notPasted.dismiss() }
+        dictationTargetTask?.cancel()
+        dropScreenContext()
+        if streamActive {
+            // Without stream_finish or a transcribe the engine emits no result for it; the
+            // next stream_start replaces it.
+            engine.send(["cmd": "stream_stop", "id": activeId ?? "p\(pass)"])
+            streamActive = false
+        } else {
+            // No stream to stop, but the engine heard the key go down (`prewarm`): tell it the
+            // dictation is over, so meeting transcription does not wait for it.
+            engine.send(["cmd": "dictation_end", "id": activeId ?? "p\(pass)"])
+        }
+        recorder.endCapture(keepHardwareWarm: appStore.settings.instantMic)
+        _ = recorder.takeSamples()
+        e2eTrace = nil
+        hidePill()
+        if competitors.hasPendingPrompt {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                self?.presentCompetitorPromptWhenIdle()
             }
         }
     }
@@ -3761,8 +3915,8 @@ final class AppController: NSObject, NSApplicationDelegate {
             let callbackNs = DispatchTime.now().uptimeNanoseconds
             Task { @MainActor in
                 if self.shortcutAllows(source: "right-option") {
-                    // Same tap logic as the Globe key: hold to talk, double-tap to
-                    // keep recording hands-free, tap once to stop.
+                    // Same logic as the Globe key: hold to talk, or tap to start
+                    // and tap again to stop.
                     let edge = self.optionEdges.update(
                         pressed: rightOption(self.optionEdges.isDown),
                         ownKey: keyCode == RightOptionKey.rightKeyCode)
@@ -3799,7 +3953,6 @@ final class AppController: NSObject, NSApplicationDelegate {
         _ edge: HoldKeyEdges.Edge, source: String, eventNs: UInt64, callbackNs: UInt64
     ) {
         var latch = tapLatch(for: source)
-        latch.tapToggles = appStore.settings.tapToToggle
         // Something else (Ctrl+Space, the menu) may have ended a latched
         // recording; the next press must start, not stop.
         if latch.latched && !isRecording { latch.reset() }
@@ -3810,17 +3963,20 @@ final class AppController: NSObject, NSApplicationDelegate {
         case .up:
             actions = [latch.keyUp(at: eventNs)]
         case .repress:
-            // The release before this press was lost (#21). A hold that is still
-            // recording ends here, as that release would have ended it; otherwise
-            // this press starts a dictation like any other.
+            // The release before this press was lost (#21). A latched recording
+            // stops on this press. A hold that is still recording ends here, as that
+            // release would have ended it; if the lost release made it a tap, it
+            // latched and this press is the stop. Idle, this press starts a
+            // dictation like any other.
             hotkeyRepresses += 1
             NSLog("phonon: \(source) pressed again without a release; resynced")
-            if isRecording && !latch.latched {
-                actions = [latch.keyUp(at: eventNs)]
-            } else if latch.latched {
+            if latch.latched {
                 actions = [latch.keyDown(at: eventNs)]
+            } else if isRecording {
+                let up = latch.keyUp(at: eventNs)
+                actions = up == .stop ? [.stop] : [latch.keyDown(at: eventNs)]
             } else {
-                _ = latch.keyUp(at: eventNs)
+                latch.reset()
                 actions = [latch.keyDown(at: eventNs)]
             }
         case .none:
@@ -3830,11 +3986,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         for action in actions {
             applyHoldKey(action, source: source, eventNs: eventNs, callbackNs: callbackNs)
         }
-        if edge == .up, actions == [.stop], latch.awaitingSecondTap,
-            loneTapHint.noteLoneTap(at: eventNs)
-        {
-            showLoneTapHint()
-        }
+        if latch.latched && isRecording { armLatchAutoStop() }
     }
 
     /// After macOS turned the event tap off and on again: a hold key that reads
@@ -3853,10 +4005,6 @@ final class AppController: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func showLoneTapHint() {
-        guard !isRecording, notPasted.current == nil else { return }
-        notPasted.show(.tapHint(key: ShortcutPolicy.holdKeyName(mode: appStore.settings.shortcutMode)))
-    }
 
     /// A `.regular` app built without a nib gets no menu bar, and AppKit hangs
     /// every standard key equivalent off menu items. Without this, Command-Q did

@@ -1,0 +1,588 @@
+#!/usr/bin/env python3
+"""
+Unified Download Progress Dialog for TuxTalk
+Shows one or more downloads (the Vulkan engine, speech models, CUDA libraries,
+the GNOME extension) in one window, each with its own progress bar and Cancel,
+and Preferences' CUDA download window built on it.
+"""
+
+import threading
+import gi
+gi.require_version('Gtk', '3.0')
+gi.require_version('Gdk', '3.0')
+from gi.repository import Gtk, Gdk, GLib
+from localdictation.download_utils import failure_reason
+
+try:
+    from localdictation.logger import setup_logger
+    logger = setup_logger(__name__)
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
+
+
+# The names the downloads are shown and reported under: run()'s results are
+# keyed by them, so a caller looks a result up with these, never a retyped
+# string that would quietly stop matching when a label changes.
+CUDA_TASK = "CUDA Libraries"
+EXTENSION_TASK = "GNOME Extension"
+
+
+def model_task(model):
+    """The name *model*'s download is shown and reported under."""
+    return f"{model} AI Model"
+
+
+def succeeded(results, name):
+    """Whether the download called *name* finished, in run()'s *results*."""
+    return results.get(name, {}).get("success", False)
+
+
+# Every rule is scoped to this class on the dialog, because a screen-wide
+# provider otherwise restyles every window in the process (Preferences too).
+_STYLE_CLASS = "tuxtalk-download-dialog"
+_CSS = b"""
+    .tuxtalk-download-dialog {
+        background-color: #2b2b2b;
+    }
+    .tuxtalk-download-dialog .task-box {
+        background-color: #363636;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 8px;
+    }
+    .tuxtalk-download-dialog .task-title {
+        color: #ffffff;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    .tuxtalk-download-dialog .task-status {
+        color: #b8b8b8;
+        font-size: 12px;
+    }
+    .tuxtalk-download-dialog progressbar {
+        min-height: 20px;
+    }
+    .tuxtalk-download-dialog progressbar progress {
+        background-color: #4285f4;
+        border-radius: 4px;
+    }
+    .tuxtalk-download-dialog progressbar trough {
+        background-color: #1a1a1a;
+        border-radius: 4px;
+    }
+"""
+_style_installed = False
+
+
+def _install_style():
+    """Add the dialog's stylesheet to the screen once per process."""
+    global _style_installed
+    if _style_installed:
+        return
+    screen = Gdk.Screen.get_default()
+    if screen is None:
+        return
+    provider = Gtk.CssProvider()
+    provider.load_from_data(_CSS)
+    Gtk.StyleContext.add_provider_for_screen(
+        screen, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+    _style_installed = True
+
+
+class DownloadTask:
+    """Represents a single download task with progress tracking."""
+
+    def __init__(self, name, size_text, download_func, can_stop=True):
+        """
+        Initialize a download task.
+
+        Args:
+            name: Display name (e.g., "CUDA Libraries")
+            size_text: Size indicator (e.g., "~585 MB")
+            download_func: Function that performs the download
+                          Should accept (progress_callback, cancel_event) args
+                          progress_callback signature: func(message, percent)
+            can_stop: False for work that ignores cancel_event (the GNOME
+                      extension's install, a moment long): its button reads
+                      "Can't stop", greyed, rather than a Cancel that would
+                      only say "Cancelled" while it went on.
+        """
+        self.name = name
+        self.can_stop = can_stop
+        self.size_text = size_text
+        self.download_func = download_func
+        self.cancelled = False
+        self.completed = False
+        self.success = False
+        self.cancel_event = threading.Event()
+        self.last_report = ("", None)   # (message, percent): a failure's reason is its last
+
+
+class UnifiedDownloadDialog:
+    """
+    Unified download progress dialog that can handle multiple downloads simultaneously.
+    Each download task gets its own progress bar and cancel button.
+    """
+
+    def __init__(self, parent=None, title=None, description=None):
+        """
+        Initialize the unified download dialog.
+
+        Args:
+            parent: Optional parent window for the dialog
+            title: Optional custom title shown at the top of the dialog
+            description: Optional custom description shown below the title
+        """
+        self.parent = parent
+        self.tasks = []
+        self.task_widgets = {}  # Maps task to its UI widgets
+        self.dialog = None
+        self.all_completed = False
+        self._title = title
+        self._description = description
+
+    def add_task(self, task):
+        """Add a download task to the dialog."""
+        self.tasks.append(task)
+
+    def _build_dialog(self):
+        """Build the GTK dialog with progress bars for each task."""
+        self.dialog = Gtk.Dialog(title=self._title or "Setting up TuxTalk")
+        # Height: base 200px + 120px per task + 100px extra if we have a long description
+        _extra = 100 if self._description else 0
+        self.dialog.set_modal(True)
+        self.dialog.set_position(Gtk.WindowPosition.CENTER)
+        from .ui_style import fit_dialog_to_screen
+        fit_dialog_to_screen(self.dialog, 620, 200 + _extra + (len(self.tasks) * 120))
+
+        if self.parent:
+            self.dialog.set_transient_for(self.parent)
+
+        self.dialog.get_style_context().add_class(_STYLE_CLASS)
+        _install_style()
+
+        content = self.dialog.get_content_area()
+        content.set_margin_top(20)
+        content.set_margin_bottom(20)
+        content.set_margin_start(30)
+        content.set_margin_end(30)
+        content.set_spacing(15)
+
+        # Main title
+        title_text = self._title or "Setting up TuxTalk"
+        title_label = Gtk.Label()
+        title_label.set_markup(
+            f'<span size="x-large"><b>{GLib.markup_escape_text(title_text)}</b></span>')
+        content.pack_start(title_label, False, False, 0)
+
+        # Description (can be multi-line for user-friendly explanations).
+        # It is Pango markup on purpose: callers bold the item names.
+        desc_text = self._description or "Downloading optional components..."
+        desc_label = Gtk.Label()
+        desc_label.set_markup(f'<span>{desc_text}</span>')
+        desc_label.set_opacity(0.8)
+        desc_label.set_line_wrap(True)
+        desc_label.set_max_width_chars(70)
+        desc_label.set_xalign(0.0)
+        content.pack_start(desc_label, False, False, 5)
+
+        # Separator
+        sep = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
+        sep.set_margin_top(5)
+        sep.set_margin_bottom(10)
+        content.pack_start(sep, False, False, 0)
+
+        # Create UI for each task
+        for task in self.tasks:
+            task_box = self._create_task_widget(task)
+            content.pack_start(task_box, False, False, 0)
+
+    def _create_task_widget(self, task):
+        """Create UI widget for a single download task."""
+        # Main container with rounded background
+        frame = Gtk.Frame()
+        frame.set_shadow_type(Gtk.ShadowType.NONE)
+        frame.get_style_context().add_class('task-box')
+
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        vbox.set_margin_top(5)
+        vbox.set_margin_bottom(5)
+
+        # Header row: title, size and Cancel button
+        header_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+
+        # Task title
+        title_label = Gtk.Label()
+        title_label.set_markup(
+            f'<b>{GLib.markup_escape_text(task.name)}</b> '
+            f'<span size="small" alpha="70%">({GLib.markup_escape_text(task.size_text)})</span>')
+        title_label.set_halign(Gtk.Align.START)
+        title_label.get_style_context().add_class('task-title')
+        header_box.pack_start(title_label, True, True, 0)
+
+        # Cancel button
+        # Work that can't stop says so, rather than a grey Cancel with no
+        # reason ("Cancel, dimmed" to a screen reader).
+        cancel_btn = Gtk.Button(label="Cancel" if task.can_stop else "Can't stop")
+        if not task.can_stop:
+            cancel_btn.set_tooltip_text("This takes a moment and can't be stopped partway")
+        cancel_btn.set_size_request(80, -1)
+        cancel_btn.connect("clicked", lambda w: self._cancel_task(task))
+        cancel_btn.set_sensitive(task.can_stop)
+        # With several downloads in the window, a screen reader would read
+        # only "Cancel" for each: named after its download.
+        cancel_btn.get_accessible().set_name(
+            f"Cancel {task.name}" if task.can_stop else f"{task.name} can't be stopped")
+        header_box.pack_end(cancel_btn, False, False, 0)
+
+        vbox.pack_start(header_box, False, False, 0)
+
+        # Status label
+        status_label = Gtk.Label()
+        status_label.set_markup('<span size="small">Waiting to start...</span>')
+        status_label.set_halign(Gtk.Align.START)
+        status_label.set_xalign(0)
+        status_label.set_line_wrap(True)          # a failure's reason can be long
+        status_label.set_max_width_chars(60)
+        status_label.get_style_context().add_class('task-status')
+        vbox.pack_start(status_label, False, False, 0)
+
+        # Progress bar
+        progress_bar = Gtk.ProgressBar()
+        progress_bar.set_show_text(True)
+        progress_bar.set_text("0%")
+        progress_bar.get_accessible().set_name(task.name)
+        vbox.pack_start(progress_bar, False, False, 0)
+
+        frame.add(vbox)
+
+        # Store widget references
+        self.task_widgets[task] = {
+            'frame': frame,
+            'title': title_label,
+            'status': status_label,
+            'progress': progress_bar,
+            'cancel_btn': cancel_btn
+        }
+
+        return frame
+
+    def _cancel_task(self, task):
+        """Handle task cancellation."""
+        logger.info(f"User cancelled {task.name}")
+        task.cancelled = True
+        task.cancel_event.set()
+
+        widgets = self.task_widgets[task]
+        widgets['status'].set_markup('<span size="small" color="#ff6b6b">❌ Cancelled</span>')
+        widgets['cancel_btn'].set_sensitive(False)
+        widgets['cancel_btn'].set_label("Cancelled")
+        widgets['cancel_btn'].get_accessible().set_name(f"{task.name} cancelled")
+        # Not left to the download: it notices the Cancel only once its
+        # request or its wait before a retry returns.
+        self._check_all_complete()
+
+    def _cancel_unfinished_tasks(self):
+        """Stop any download still running when the window goes away.
+
+        The download loops check cancel_event between chunks. Without this, a
+        multi-gigabyte transfer would carry on writing to disk after the
+        window closed, with no progress shown and no way to stop it.
+
+        Completed tasks are left untouched so a finished download is not
+        retrospectively marked cancelled.
+        """
+        for task in self.tasks:
+            if not task.completed and task.can_stop:
+                task.cancelled = True
+                task.cancel_event.set()
+                logger.info(f"Window closed — cancelling {task.name}")
+
+    def _update_task_progress(self, task, message, percent):
+        """Update progress for a specific task (thread-safe). Only a change
+        is sent to GTK: a download reports every chunk it gets, and that
+        would flood GTK's loop."""
+        if (message, percent) == task.last_report:
+            return
+        task.last_report = (message, percent)
+
+        def update_ui():
+            # A download reports once more before it notices Cancel, and a
+            # finished one has its last word already.
+            if task not in self.task_widgets or task.cancelled or task.completed:
+                return False
+
+            widgets = self.task_widgets[task]
+            widgets['status'].set_markup(
+                f'<span size="small">{GLib.markup_escape_text(str(message))}</span>')
+            widgets['progress'].set_fraction(percent / 100.0)
+            widgets['progress'].set_text(f"{percent}%")
+            return False
+
+        GLib.idle_add(update_ui)
+
+    def _mark_task_complete(self, task, success):
+        """Mark a task as complete (thread-safe)."""
+        def update_ui():
+            """Show the task as complete, failed or stopped, on GTK's thread,
+            then see whether every task is done."""
+            if task not in self.task_widgets:
+                return False
+
+            task.completed = True
+            task.success = success
+
+            widgets = self.task_widgets[task]
+            widgets['cancel_btn'].set_sensitive(False)
+            widgets['cancel_btn'].set_tooltip_text(None)    # "can't be stopped": done now
+
+            if task.cancelled:
+                # The download returns False when cancelled; it didn't fail.
+                pass
+            elif success:
+                widgets['status'].set_markup(
+                    '<span size="small" color="#51cf66">✅ Complete!</span>')
+                widgets['progress'].set_fraction(1.0)
+                widgets['progress'].set_text("100%")
+                widgets['cancel_btn'].set_label("Done")
+            else:
+                why = failure_reason(*task.last_report) or "Failed"
+                widgets['status'].set_markup('<span size="small" color="#ff6b6b">❌ '
+                                             f'{GLib.markup_escape_text(why)}</span>')
+                widgets['cancel_btn'].set_label("Failed")
+
+            # Check if all tasks are done
+            self._check_all_complete()
+            return False
+
+        GLib.idle_add(update_ui)
+
+    def _check_all_complete(self):
+        """Close the window once every task has ended: at once when they were
+        all cancelled, after 1.5 s when they ended well (so "Complete!"
+        shows), and never by itself when one failed. Then its reason stays
+        on screen until the user clicks Close."""
+        if self.all_completed or not all(t.completed or t.cancelled for t in self.tasks):
+            return
+        self.all_completed = True
+        if self.dialog is None:
+            return
+        if any(t.completed and not t.success and not t.cancelled for t in self.tasks):
+            close = self.dialog.add_button("Close", Gtk.ResponseType.OK)
+            close.show()
+            close.grab_focus()
+        elif all(t.cancelled for t in self.tasks):
+            self.dialog.response(Gtk.ResponseType.CANCEL)
+        else:
+            GLib.timeout_add(1500, lambda: self.dialog.response(Gtk.ResponseType.OK)
+                             if self.dialog else False)
+
+    def _run_task(self, task):
+        """Run a download task in a background thread."""
+        def progress_callback(message, percent):
+            self._update_task_progress(task, message, percent)
+
+        def do_download():
+            try:
+                success = task.download_func(progress_callback, task.cancel_event)
+                self._mark_task_complete(task, success)
+            except Exception as e:
+                logger.error(f"Error in {task.name} download: {e}", exc_info=True)
+                self._mark_task_complete(task, False)
+
+        thread = threading.Thread(target=do_download)
+        thread.daemon = True
+        thread.start()
+
+    def run(self):
+        """
+        Show the dialog and run all download tasks.
+
+        Returns:
+            dict: {task name: {'success': bool, 'cancelled': bool,
+                   'completed': bool}}, read with succeeded()
+        """
+        if not self.tasks:
+            logger.warning("No download tasks to run")
+            return {}
+
+        # Build the dialog
+        self._build_dialog()
+        self.dialog.show_all()
+
+        # Start all download tasks
+        for task in self.tasks:
+            self._run_task(task)
+
+        # Run the dialog until it closes. Work that can't stop (the GNOME
+        # extension's install) keeps it open through the X or Escape: closed
+        # early, its result would be lost while the work went on.
+        while (self.dialog.run() != Gtk.ResponseType.OK
+               and any(not t.completed and not t.can_stop for t in self.tasks)):
+            pass
+        # Whatever closed it — the X, Escape, or the closing timer — nothing is
+        # left to show progress in, so no download may outlive it.
+        self._cancel_unfinished_tasks()
+        self.dialog.destroy()
+        # Cancelled downloads still report back for a moment; with no widgets
+        # left, their updates and the auto-close timer do nothing.
+        self.task_widgets.clear()
+        self.dialog = None
+
+        # Return results
+        results = {}
+        for task in self.tasks:
+            results[task.name] = {
+                'success': task.success,
+                'cancelled': task.cancelled,
+                'completed': task.completed
+            }
+
+        return results
+
+
+def run_downloads(parent, title, description, tasks, arrived=lambda: True):
+    """Run the DownloadTasks *tasks* in one download window over *parent*.
+    True once every one finished and *arrived()* finds what they fetched,
+    False when one was cancelled (closing the window cancels), None when
+    one failed: its reason is in its last_report, and the window showed it."""
+    dialog = UnifiedDownloadDialog(parent=parent, title=title, description=description)
+    for task in tasks:
+        dialog.add_task(task)
+    results = dialog.run().values()
+    if all(r.get("success") for r in results) and arrived():
+        return True
+    if any(r.get("cancelled") for r in results):
+        return False
+    return None
+
+
+def show_cuda_download_dialog(parent=None, on_success_callback=None):
+    """Download TuxTalk's CUDA libraries in the download window (Preferences'
+    Device choice), then say how it went.
+
+    on_success_callback runs after the "Downloaded!" message, for example to
+    refresh Preferences. Returns True on success, False on failure and None
+    if the user cancelled.
+    """
+    from localdictation import cuda_download
+    task = DownloadTask(CUDA_TASK, f"~{cuda_download.DOWNLOAD_SIZE_TEXT}",
+                        cuda_download.download_cuda_libraries)
+    result = run_downloads(parent, "Downloading CUDA Libraries",
+                           "This may take several minutes depending on your connection.",
+                           [task])
+    if result is False:
+        # The download notices the Cancel and cleans up by itself.
+        logger.info("User cancelled CUDA download")
+        return None
+    if result is None and failure_reason(*task.last_report):
+        # The window showed why and waited for Close: not twice.
+        logger.error("CUDA libraries download failed")
+        return False
+    _say_how_the_cuda_download_went(parent, bool(result), on_success_callback)
+    return bool(result)
+
+
+def _say_how_the_cuda_download_went(parent, success, on_success_callback):
+    """"CUDA Libraries Downloaded!", then *on_success_callback*, or "Download
+    Failed" for a failure the download window couldn't explain. Switching the device
+    is the caller's job (Preferences applies it, so the service restarts
+    onto it), after the message so its question doesn't come before
+    "Downloaded!"."""
+    from localdictation.ui_style import show_message
+    if not success:
+        show_message(parent, Gtk.MessageType.ERROR, "Download Failed",
+                     "Could not download CUDA libraries.\n\nYou can try again later: choose "
+                     "CUDA under Preferences → General → Change model, device or language → "
+                     "Device.")
+        logger.error("CUDA libraries download failed")
+        return
+    show_message(parent, Gtk.MessageType.INFO, "CUDA Libraries Downloaded!",
+                 "Your NVIDIA graphics card can now run the Whisper models with CUDA.")
+    if on_success_callback:
+        try:
+            on_success_callback()
+        except Exception as e:
+            logger.warning(f"Error in success callback: {e}", exc_info=True)
+    logger.info("CUDA libraries downloaded successfully")
+
+
+def show_unified_download_dialog(cuda=False, extension=False, model=None, parent=None,
+                                  title=None, description=None):
+    """
+    Convenience function to show unified download dialog.
+
+    Args:
+        cuda: Whether to download CUDA libraries
+        extension: Whether to install GNOME extension
+        model: Optional model name to download (e.g. "large-v3"). Files are fetched to
+               HuggingFace cache only — the model is NOT loaded into memory here.
+        parent: Optional parent window
+        title: Optional dialog title override
+        description: Optional description text override (shown below the title)
+
+    Returns:
+        dict: Download results keyed by task name, each with keys:
+              'success' (bool), 'cancelled' (bool), 'completed' (bool)
+    """
+    # Build default title/description when downloading CUDA + a model together
+    if title is None and cuda and model:
+        title = f"Downloading {model} and CUDA"
+    if description is None and cuda and model:
+        from localdictation.cuda_download import DOWNLOAD_SIZE_TEXT as cuda_size
+        from localdictation.model_helper import MODEL_DISPLAY_SIZES
+        model_size = MODEL_DISPLAY_SIZES.get(model, "~3 GB")
+        description = (
+            f"To run {model} on your NVIDIA graphics card with CUDA, TuxTalk needs two things:\n\n"
+            f"  • <b>CUDA GPU Libraries</b> (~{cuda_size}) — unlocks GPU acceleration on "
+            "your NVIDIA card\n"
+            f"  • <b>{model} AI Model</b> ({model_size}) — the highest-accuracy speech "
+            "recognition model\n\n"
+            "Both are one-time downloads. This may take several minutes depending on "
+            "your connection."
+        )
+
+    dialog = UnifiedDownloadDialog(parent=parent, title=title, description=description)
+
+    if cuda:
+        from localdictation import cuda_download
+        task = DownloadTask(
+            name=CUDA_TASK,
+            size_text=f"~{cuda_download.DOWNLOAD_SIZE_TEXT}",
+            download_func=cuda_download.download_cuda_libraries
+        )
+        dialog.add_task(task)
+
+    if model:
+        from localdictation.model_helper import make_model_download_func, MODEL_DISPLAY_SIZES
+        model_size = MODEL_DISPLAY_SIZES.get(model, "unknown size")
+        task = DownloadTask(
+            name=model_task(model),
+            size_text=model_size,
+            download_func=make_model_download_func(model)
+        )
+        dialog.add_task(task)
+
+    if extension:
+        from localdictation import extension_helper
+
+        def extension_download(progress_callback, cancel_event):
+            """Wrapper for extension installation with progress tracking."""
+            progress_callback("Installing GNOME extension...", 30)
+            success = extension_helper.install_extension()
+            if success:
+                progress_callback("Extension installed successfully!", 100)
+            else:
+                progress_callback("Installation failed", 0)
+            return success
+
+        task = DownloadTask(
+            name=EXTENSION_TASK,
+            size_text="~10KB",
+            download_func=extension_download,
+            can_stop=False
+        )
+        dialog.add_task(task)
+
+    return dialog.run()

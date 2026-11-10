@@ -1,0 +1,746 @@
+"""The hotkeys, read from the keyboards themselves (evdev) or from the
+installed hotkey helper: hold to dictate, tap to toggle, a double-tap for
+hands-free, Shift for a voice edit, Esc to cancel, and the Voice Commands
+and Paste Last Dictation combos. run() is the input loop; each pass it also
+runs the service's shared tick (service_tick.tick), and keyboards that come
+and go are picked up while no recording runs."""
+import atexit
+import os
+import sys
+import threading
+import time
+
+from evdev import InputDevice, ecodes, list_devices
+
+from . import (
+    beeps,
+    ctrl_kept,
+    ctrl_space,
+    ctrl_space_clashes,
+    delivery,
+    delivery_notices,
+    desktop_detect,
+    dictation_worker,
+    first_run_marker,
+    hotkey_keys,
+    keyboard_devices,
+    keyboard_grab,
+    modifier_hotkeys,
+    mouse_grid,
+    notices,
+    pipeline,
+    recording,
+    send_countdown,
+    service_tick,
+    tray_link,
+    uinput_helper,
+)
+from . import live_settings as live
+from . import recording_state as rs
+from .beeps import CANCEL_BEEP
+from .config import Settings
+from .hotkey_keys import (MODIFIER_CODES, SHIFT_CODES, check_modifiers_held, keys_down,
+                          track_modifier)
+from .logger import setup_logger
+from .normalize import LINE_BREAK
+
+logger = setup_logger(__name__)
+
+# Hotkey test mode: while Preferences' Test Hotkeys dialog keeps its flag file
+# fresh (service_launcher.hotkey_test_flag_path), hotkey presses are reported via
+# the D-Bus HotkeyPressed signal instead of starting/stopping recording. This
+# keeps the evdev grab alive and avoids XWayland phantom key-repeat floods.
+_hotkey_test_flag = None    # the flag's path, worked out on first use
+
+_hotkey_test_was_on = False  # for logging when test mode starts and ends
+
+# Whether Left Ctrl+Space, as a dictation key, is down (ctrl_space).
+_ctrl_space = ctrl_space.Presses()
+# The (hold, toggle) keys last looked at for others using Ctrl+Space.
+_clash_lookup_for = None
+
+
+def _hotkey_test_active() -> bool:
+    """Whether the Test Hotkeys dialog is open: its flag exists and is fresh."""
+    global _hotkey_test_flag, _hotkey_test_was_on
+    from . import service_launcher
+    if _hotkey_test_flag is None:
+        _hotkey_test_flag = service_launcher.hotkey_test_flag_path()
+    try:
+        age = time.time() - os.path.getmtime(_hotkey_test_flag)
+        on = age < service_launcher.HOTKEY_TEST_LEASE_S
+    except OSError:
+        on = False
+    if on != _hotkey_test_was_on:
+        _hotkey_test_was_on = on
+        logger.info(f"Hotkey test mode {'on' if on else 'off'}")
+    return on
+
+
+def _claim_desktop_hotkeys(cfg):
+    """Ask the desktop to keep the hotkeys away from the focused app.
+
+    We read them below the desktop, so without this F8 also reaches the app
+    ("~" in a terminal). On KDE a KWin script holds them (kwin_hotkeys); on
+    GNOME the extension does, from the list sent to the tray here; on COSMIC
+    shortcuts of its own (cosmic_hotkeys); on other X11 desktops the X server
+    (x11_hotkeys). Called at startup and after every live settings change.
+    None of it can fail dictation: the claims never raise, and the tray call
+    is fire-and-forget.
+    """
+    from . import cosmic_hotkeys, gnome_hotkeys, kwin_hotkeys, x11_hotkeys
+    kwin_hotkeys.claim(cfg)
+    cosmic_hotkeys.claim(cfg)
+    x11_hotkeys.claim(cfg)
+    tray_link.call("NotifyClaimedHotkeys", gnome_hotkeys.accelerators(cfg), signature="as",
+                   what="send the hotkeys to the tray")
+
+
+# How long the input loop sleeps waiting for a key event before it does its
+# other work: D-Bus start/stop commands, the auto-timeout, settings changes.
+# Waiting on the devices instead of reading each one every few milliseconds
+# lets an idle service sleep; a key press still wakes it at once.
+INPUT_WAIT_S = 0.05
+
+# The shortest pass through the input loop, so a mouse sending 1000 events a
+# second can't spin the loop flat out.
+INPUT_MIN_PASS_S = 0.005
+
+
+def _rediscover_devices(devices) -> int:
+    """Add keyboards that have appeared since the last scan. Returns how many.
+
+    Without this, a device dropped by _drop_dead_devices (after a wireless
+    receiver blip, a USB reset or a resume from suspend) would be gone for the
+    life of the process, and on a single-keyboard machine the hotkey would
+    silently stop working. Only keyboards are added, so the poll list never
+    grows with power buttons; a Logitech mouse counts as one
+    (keyboard_devices.is_keyboard_device), its movement kept from the reader.
+    """
+    added = keyboard_devices.open_new_keyboards(devices, list_devices, InputDevice)
+    for dev in added:
+        logger.info(f"Input device appeared, now monitoring: {dev.name}")
+    return len(added)
+
+
+def _drop_dead_devices(dead_devices, devices, cfg) -> None:
+    """Remove input devices that failed mid-read, ending a recording we could
+    no longer end any other way.
+
+    A hold-key recording (the only kind that keeps the keyboards grabbed) is
+    stopped by a key-up that can only come from the device the key was
+    pressed on. If that device dies — a wireless receiver blip, a
+    USB reset, a resume from suspend — the release event is unreachable and
+    state.is_recording would stay True for the life of the process.
+
+    That matters far more than the lost device: both the stranded-grab
+    backstop and the auto-timeout are gated on `not state.is_recording`, so a
+    stuck flag leaves every *other* keyboard exclusively grabbed indefinitely
+    and stops the service ever timing out. The user cannot type anywhere, and
+    the only way back is the tray. So: end the recording deliberately.
+    """
+    if not dead_devices:
+        return
+
+    for dev in dead_devices:
+        if dev in devices:
+            devices.remove(dev)
+
+    # The hold key works whatever the configured mode, so the grabs, not the
+    # mode, tell a hold recording apart. A toggle or hands-free recording
+    # holds no grab and carries on: any keyboard can still stop it.
+    if rs.state.is_recording and keyboard_grab.grabbed_devices:
+        logger.warning(
+            "Input device died while the hold hotkey was down — ending the "
+            "recording, since its key-up can no longer arrive"
+        )
+        keyboard_grab.release_all()
+        _stop_recording(cfg)
+
+    dead_devices.clear()
+
+
+def _forget_lost_presses(devices, keys) -> None:
+    """After a keyboard went away or the hotkeys changed: forget dictation
+    key presses no remaining keyboard reports down, or whose key isn't a
+    dictation key now, since their release won't be read. Otherwise a space
+    they held back waited until that key was pressed again."""
+    down = keys_down(devices) & {keys.hold_key, keys.toggle_key}   # read outside the lock
+    if ctrl_space.KEY not in down:
+        _ctrl_space.forget()
+    ctrl_kept.let_go(devices)           # its release won't be read either
+    if send_countdown.forget_presses(down) and send_countdown.owes_space():
+        dictation_worker.submit(send_countdown.give_back_space)
+
+
+# A combo press whose keys aren't all let go within this long is dropped, so a
+# missed key release can never make TuxTalk paste out of the blue later.
+PASTE_LAST_EXPIRY_S = 5.0
+
+# How long the end of a Shift+toggle edit waits for Shift to be let go.
+EDIT_SHIFT_WAIT_S = 2.0
+
+
+def _held_shift(held_modifiers) -> set:
+    """The Shift keys among *held_modifiers*: Shift + the dictation key starts
+    a voice edit instead of a dictation."""
+    return set(held_modifiers) & SHIFT_CODES
+
+
+def _someone_elses_shortcut(held_modifiers, key) -> bool:
+    """Dictation key *key* pressed with modifiers the desktop doesn't hold
+    back for us (hotkey_claims.keys_to_claim: the plain key, Left Ctrl with
+    Space, and Shift with it when voice editing is on). Such a press reaches
+    the app (Alt+F8 resizes the window on KDE and GNOME), so it mustn't
+    start a dictation as well."""
+    allowed = {key, *ctrl_space.held_with(key), *(SHIFT_CODES if live.voice_editing else ())}
+    return bool(set(held_modifiers) - allowed)
+
+
+def _paste_last_dictation(cfg) -> None:
+    """Type the newest Recent Dictations entry again, the way a dictation is
+    typed (line breaks, injection mode, the trailing space)."""
+    from .history import get_entries
+    entries = get_entries()
+    if not entries:
+        logger.info("Paste last dictation: nothing dictated yet")
+        beeps.beep(cfg.beeps, *CANCEL_BEEP)
+        return
+    text = entries[0].replace("\n", LINE_BREAK)
+    if getattr(cfg, "auto_space", True):
+        text += " "
+    logger.info("Paste last dictation")
+    outcome = delivery.inject_text(text, cfg.injection_mode)
+    if outcome in delivery_notices.NOTICES:
+        notices.report_undelivered(outcome, cfg.beeps)
+
+
+def _report_test_press(code, hold_key, toggle_key) -> None:
+    """In the hotkey test, tell the tray which dictation key *code* is."""
+    if code == hold_key:
+        tray_link.notify_hotkey_pressed("hold")
+    elif toggle_key and code == toggle_key:
+        tray_link.notify_hotkey_pressed("toggle")
+
+
+def _hide_modifier_hotkey(event, toggle_key, devices, held_modifiers) -> None:
+    """Hide a Right Ctrl or Right Alt dictation key from the desktop as soon
+    as it's down: what TuxTalk types meanwhile (the dictation a tap stops, a
+    phrase of hands-free, a send counting down) would otherwise arrive as
+    Ctrl or Alt shortcuts (Ctrl+W closes the tab). The hold key hides itself
+    when it starts a dictation (_handle_key_event). Kept until it's let go,
+    or until something lets go of every grab sooner; the desktop has been
+    told it's up either way. Not with another modifier held: that press is
+    the user's own shortcut (Ctrl+Alt+T with Right Ctrl), which hiding the
+    key would break."""
+    if (event.value == 1 and not keyboard_grab.grabbed_devices
+            and (event.code == toggle_key or rs.state.is_recording)
+            and not _someone_elses_shortcut(held_modifiers, event.code)):
+        keyboard_grab.grab_keyboards_hiding(devices, {event.code})
+        rs.state.hidden_key = event.code
+    elif event.value == 0:
+        modifier_hotkeys.note_released(event.code)
+        if event.code == rs.state.hidden_key:
+            rs.state.hidden_key = None
+            keyboard_grab.release_all()
+
+
+def _toggle_tap_holds_send(event, toggle_key, held_modifiers) -> bool:
+    """A press of the toggle key while a send counts down holds it, and does
+    nothing else. Asked before a Right Ctrl or Right Alt toggle is hidden
+    (_hide_modifier_hotkey): once hidden, the send's Enter, which waits for
+    the key, could go out before the hold."""
+    return (event.code == toggle_key and event.value == 1 and not rs.state.is_recording
+            and not _someone_elses_shortcut(held_modifiers, toggle_key)
+            and not (live.voice_editing and _held_shift(held_modifiers))
+            and send_countdown.hold(announce=True))
+
+
+def _start_hold_recording(hold_key, held_modifiers, devices, cfg, input_device_idx) -> None:
+    """The hold key went down: hold a send counting down, then hide the key
+    (with Left Ctrl for Left Ctrl+Space, and Shift for voice editing) from
+    the desktop, and record.
+
+    The send goes first: once the key is hidden, an Enter that waits for it
+    to come up goes out. The grab keeps the hotkey from the focused app,
+    without leaving the desktop thinking it's still held (see
+    keyboard_grab.grab_keyboards_hiding); start_recording lets go of it if the mic fails
+    to open. Shift unhidden, the Ctrl+C that copies the selection would
+    arrive as Ctrl+Shift+C."""
+    send_countdown.key_pressed(hold_key)
+    held = send_countdown.hold(announce=False)
+    shift = _held_shift(held_modifiers) if live.voice_editing else set()
+    pair = ctrl_space.held_with(hold_key)
+    if pair:
+        ctrl_kept.let_go()      # a Ctrl given back after the last hold is hidden too
+    keyboard_grab.grab_keyboards_hiding(devices, {hold_key, *pair, *shift})
+    if pair and modifier_hotkeys.hidden_by_own_grab(ctrl_space.MODIFIER):
+        _ctrl_space.modifier_hidden()
+    rec = recording.start_recording(cfg.beeps, cfg.notify, input_device_idx,
+                                    edit_mode=bool(shift), held_send=held)
+    if rec is not None and rec.held_send:
+        # The hold time counts from the press to when its release is read,
+        # which waits for the start: 0.15 to 0.2 s in the test VMs, so a
+        # quick tap to hold the send came to over MIN_HOLD_MS on Pop!_OS and
+        # recorded instead. A key already up after a start that quick was a
+        # tap; after a slower one it could have been a short word, so the
+        # hold time decides.
+        rec.released_while_starting = (
+            time.time() - rec.press_t0 < 2 * recording.MIN_HOLD_MS / 1000
+            and keyboard_grab.wait_for_keys_up(devices, {hold_key}, 0))
+
+
+def _handle_key_event(event, hold_key, toggle_key, voice_cmds_combo, held_modifiers,
+                      devices, cfg, input_device_idx, paste_last_combo=None):
+    """Handle a single keyboard event. Both hold (F8) and toggle (F9) are always active.
+
+    Grabbed devices are tracked in module state (see keyboard_grab), not
+    returned, so that every way recording can end — release, toggle, ESC, or an
+    exception inside start_recording — releases the keyboard.
+    """
+    if modifier_hotkeys.right_alt_alone(event, (hold_key, toggle_key), held_modifiers):
+        modifier_hotkeys.guard_alt_tap()
+    modifier_hotkeys.note_compose_key(event, (hold_key, toggle_key), held_modifiers)
+
+    if _on_test_or_combo(event, hold_key, toggle_key, voice_cmds_combo, paste_last_combo,
+                         held_modifiers, devices, cfg):
+        return
+    if toggle_key and _toggle_tap_holds_send(event, toggle_key, held_modifiers):
+        send_countdown.key_pressed(toggle_key)
+        return   # the tap only held the send: no recording
+    if event.code in MODIFIER_CODES and event.code in (hold_key, toggle_key):
+        _hide_modifier_hotkey(event, toggle_key, devices, held_modifiers)
+
+    if event.code == hold_key:
+        _on_hold_key(event, hold_key, held_modifiers, devices, cfg, input_device_idx)
+    if (toggle_key and event.code == toggle_key
+            and _on_toggle_key(event, toggle_key, held_modifiers, devices, cfg, input_device_idx)):
+        return   # a voice edit was cancelled
+
+    if event.code == ecodes.KEY_ESC and event.value == 1:
+        _on_esc(cfg)
+
+
+def _on_esc(cfg) -> None:
+    """Esc cancels the recording in any mode, and after its key is up too,
+    while what was said is still being transcribed or typed. The keyboard
+    comes back first: stopping the stream can take seconds with a slow
+    sound server. With nothing of that to cancel, it closes the mouse grid,
+    which never takes the keyboard to hear Esc itself."""
+    rec = rs.state.current
+    if rs.state.is_recording:
+        keyboard_grab.release_all()
+        recording.cancel_recording(rec, cfg.beeps, cfg.notify, "Cancelled by ESC")
+    elif rec.message.finishing:
+        recording.cancel_finishing(rec, cfg.beeps, cfg.notify)
+    else:
+        mouse_grid.close("Esc")
+
+
+def _on_test_or_combo(event, hold_key, toggle_key, voice_cmds_combo, paste_last_combo,
+                      held_modifiers, devices, cfg) -> bool:
+    """The hotkey test (presses reported to Preferences instead of
+    recording) and the two combos; True when *event* was theirs."""
+    if event.value == 1 and _hotkey_test_active():
+        _report_test_press(event.code, hold_key, toggle_key)
+        return True
+    return (_on_paste_last(event, paste_last_combo, held_modifiers, devices, cfg,
+                           (hold_key, toggle_key))
+            or _on_voice_commands_combo(event, voice_cmds_combo, held_modifiers, devices))
+
+
+def _stop_recording(cfg) -> None:
+    """Stop the recording and type what was said, with *cfg*'s settings."""
+    pipeline.stop_recording(cfg.beeps, cfg.smart_quotes, cfg.notify, cfg.language,
+                            cfg.auto_space, cfg.auto_period, cfg.injection_mode)
+
+
+def _on_paste_last(event, combo, held_modifiers, devices, cfg, dictation_keys) -> bool:
+    """Paste Last Dictation's combo (e.g. Ctrl+Alt+P); True when *event* was
+    its. Typed only once every key of the combo is let go: typing while Ctrl
+    and Alt are still down would turn each letter into a Ctrl+Alt shortcut.
+    *dictation_keys* (hold, toggle) are never the combo's, even a Right Ctrl."""
+    pending = rs.state.paste_last
+    combo_modifiers = MODIFIER_CODES - set(dictation_keys)
+    if pending is not None:
+        if time.time() - pending["at"] > PASTE_LAST_EXPIRY_S:
+            rs.state.paste_last = None
+        elif event.value == 0 and (event.code == pending["key"]
+                                   or event.code in combo_modifiers):
+            # Only the combo's own keys are waited for. Any other release
+            # goes on to the handlers: swallowing it would lose a hold
+            # key's key-up and leave that recording running.
+            if event.code == pending["key"]:
+                pending["key_up"] = True
+            if pending["key_up"] and not held_modifiers & combo_modifiers:
+                rs.state.paste_last = None
+                if not rs.state.is_recording:
+                    # After what's still being typed, not into the middle of it.
+                    dictation_worker.submit(lambda: _paste_last_dictation(cfg))
+            return True
+    if combo and event.value == 1 and not rs.state.is_recording:
+        required_mods, main_key = combo
+        if event.code == main_key and check_modifiers_held(required_mods, held_modifiers):
+            # Same brief grab as the Voice Commands combo, so the key
+            # press doesn't reach the focused app.
+            keyboard_grab.grab_keyboards_hiding(devices, {main_key, *held_modifiers})
+            keyboard_grab.release_all()
+            rs.state.paste_last = {"key": main_key, "key_up": False, "at": time.time()}
+            return True
+    return False
+
+
+def _on_voice_commands_combo(event, combo, held_modifiers, devices) -> bool:
+    """The Voice Commands combo (e.g. Ctrl+Shift+H) opens the cheat sheet;
+    True when *event* was its. Not while recording: its brief grab ends by
+    releasing every grab, which would also drop the ones a hold recording
+    depends on."""
+    if not combo or event.value != 1 or rs.state.is_recording:
+        return False
+    required_mods, main_key = combo
+    if event.code != main_key or not check_modifiers_held(required_mods, held_modifiers):
+        return False
+    # Briefly grab the keyboards (not the pointer) to stop the keypress
+    # leaking into the focused app. The same tracked grabs as recording,
+    # and a finally that always releases, so a failing tray call can't
+    # strand them. The modifiers are balanced too: a stuck Ctrl in the
+    # desktop would be far worse than a stuck F8.
+    keyboard_grab.grab_keyboards_hiding(devices, {main_key, *held_modifiers})
+    try:
+        tray_link.show_voice_commands()
+    finally:
+        keyboard_grab.release_all()
+    return True
+
+
+def _on_hold_key(event, hold_key, held_modifiers, devices, cfg, input_device_idx) -> None:
+    """Hold-to-talk: the hold key down records, let go stops and types. A
+    release stops only the recording its own press saw (rs.state.hold_stops),
+    so letting go of Alt+F8 doesn't end a recording F9 started."""
+    if event.value == 0:
+        _dictation_key_up(hold_key)
+        stops, rs.state.hold_stops = rs.state.hold_stops, None
+        if rs.state.is_recording and stops is rs.state.current:
+            # Asked while the grab is held: letting go forgets what it hid.
+            shift_shown = rs.state.current.edit_mode and modifier_hotkeys.shift_shown()
+            # Let go of the keyboards before typing, so the user's own keys
+            # reach the app again
+            keyboard_grab.release_all()
+            if shift_shown and _edit_cancelled_for_shift(devices, cfg):
+                return
+            _stop_recording(cfg)
+    elif event.value == 1:
+        rs.state.hold_stops = None
+        if _someone_elses_shortcut(held_modifiers, hold_key):
+            return
+        if not rs.state.is_recording:
+            _start_hold_recording(hold_key, held_modifiers, devices, cfg, input_device_idx)
+        rs.state.hold_stops = rs.state.current
+
+
+def _dictation_key_up(key) -> None:
+    """Dictation key *key* came up. When its press was TuxTalk's
+    (send_countdown.key_pressed) and its recording is over already (a tap
+    that only held a send, Esc, a microphone that didn't open), the space a
+    held send left off may go in (send_countdown.give_back_space, which
+    looks at the keys again when it runs). A recording still running gives
+    it back when it ends."""
+    if send_countdown.key_released(key) and not rs.state.is_recording:
+        # After what's still being typed.
+        dictation_worker.submit(send_countdown.give_back_space)
+
+
+def _on_toggle_key(event, toggle_key, held_modifiers, devices, cfg, input_device_idx) -> bool:
+    """Tap-to-toggle: a tap starts a recording, the next stops it, and a
+    quick second tap makes it hands-free. With Shift (voice editing on) it
+    is a voice edit. True when a voice edit was cancelled."""
+    if event.value == 0:
+        _dictation_key_up(toggle_key)
+    if event.value != 1 or _someone_elses_shortcut(held_modifiers, toggle_key):
+        return False
+    send_countdown.key_pressed(toggle_key)
+    shift = _held_shift(held_modifiers) if live.voice_editing else set()
+    if not rs.state.is_recording:
+        if shift:
+            # An edit: no double-tap hands-free, so not "from_toggle".
+            recording.start_recording(cfg.beeps, cfg.notify, input_device_idx, edit_mode=True)
+        else:
+            recording.start_recording(cfg.beeps, cfg.notify, input_device_idx, from_toggle=True)
+    elif rs.state.current.edit_mode:
+        return _stop_edit(shift, devices, cfg)
+    elif not recording.toggle_pressed_while_recording(cfg.beeps):
+        # Not the second tap of a double-tap (that one keeps recording,
+        # hands-free). Also reached by brushing the toggle key mid-hold:
+        # release first, or the hold key's release is skipped and the grab
+        # is stranded.
+        keyboard_grab.release_all()
+        _stop_recording(cfg)
+    return False
+
+
+def _stop_edit(shift, devices, cfg) -> bool:
+    """The toggle key stops a voice edit; True when it was cancelled instead."""
+    # A hold edit holds the keyboards (brushing the toggle key mid-hold
+    # lands here): let go first, or they stay grabbed for the whole edit.
+    keyboard_grab.release_all()
+    # If Shift is down again, wait for the user to let go. Hiding it with
+    # injected key events, as the hold key does, would replay them after a
+    # slow edit and start a new recording by itself.
+    if shift and _edit_cancelled_for_shift(devices, cfg):
+        return True
+    _stop_recording(cfg)
+    return False
+
+
+def _edit_cancelled_for_shift(devices, cfg) -> bool:
+    """Wait for a Shift the desktop sees down to be let go before a voice
+    edit goes on: the Ctrl+C that copies the selection would arrive as
+    Ctrl+Shift+C (a browser's inspector). True, with the edit cancelled
+    and the user told, when it stays down."""
+    if keyboard_grab.wait_for_keys_up(devices, SHIFT_CODES, EDIT_SHIFT_WAIT_S):
+        return False
+    recording.cancel_recording(rs.state.current, cfg.beeps, cfg.notify,
+                               "Voice edit cancelled: let go of Shift to finish it")
+    return True
+
+
+def _helper_watch(devices, hold_key, toggle_key, voice_cmds_combo, paste_last_combo):
+    """Tell the hotkey helper, when it stands in for the keyboards, which keys
+    to report: the dictation keys, Esc, and the two combos."""
+    for dev in devices:
+        if hasattr(dev, "watch"):
+            from .hotkey_helper_client import refused_combo, watch_specs
+            for what, combo in (("Voice Commands", voice_cmds_combo),
+                                ("Paste Last Dictation", paste_last_combo)):
+                why = combo and refused_combo(*combo)
+                if why:
+                    logger.warning(f"The {what} shortcut won't work with the hotkey helper "
+                                   f"({why}). Pick one with Ctrl+Alt, Ctrl+Super or Alt+Super.")
+            dev.watch(watch_specs(hold_key, toggle_key, ecodes.KEY_ESC,
+                                  (voice_cmds_combo, paste_last_combo)))
+
+
+def run(cfg: Settings, input_device_idx, keyboards=None):
+    """The input loop: read hotkey presses and act on them, for the life of
+    the service.
+
+    *keyboards* is the hotkey helper (hotkey_helper_client.HelperKeyboard) when
+    it is installed: then no keyboard is opened here at all."""
+    # X11 as the hotkey grab and the keyboard layout decide it: a startx
+    # session sets no XDG_SESSION_TYPE and is X11 all the same.
+    logger.info(f"Session type: {os.environ.get('XDG_SESSION_TYPE') or 'not set'}, "
+                f"X11: {desktop_detect.is_x11_session(os.environ)}")
+    # Both hotkeys work whatever the mode setting says.
+    logger.info(f"Hold key: {cfg.hotkey}, Toggle key: {cfg.toggle_hotkey or 'none'}")
+    svc = service_tick.ServiceState(cfg, input_device_idx)
+    logger.info(f"Auto-timeout: enabled={svc.timeout_enabled}, minutes={svc.timeout_minutes}")
+
+    use_helper = keyboards is not None
+    devices = _open_keyboards(keyboards)
+    last_device_scan = time.time()
+    # Establish both files' current mtimes so the first poll does not report a
+    # spurious change and re-apply what the service just started with.
+    # The recheck timer itself lives on ServiceState — service_tick.tick owns it
+    # for both backends.
+    live.config_file_changed()
+    live.commands_file_changed()
+    live.words_file_changed()
+
+    keys = _keys_to_watch(cfg, devices)
+    if keys is None:
+        return
+    _watch(cfg, devices, keys)
+    # The desktop holds the hotkeys back from the focused app until
+    # stop_dictation_service, the tray or this exit hook releases them;
+    # registered even if the claim failed, since a later change can succeed.
+    from .service_launcher import release_desktop_hotkeys
+    atexit.register(release_desktop_hotkeys)
+
+    # Which modifier keys are held now, for combo detection.
+    held_modifiers: set[int] = set()
+    while True:
+        current_time = time.time()
+        # Backend-agnostic work: D-Bus/portal start/stop commands, the
+        # auto-timeout, and Preferences changes. Not live.config_file_changed()
+        # here: that check is edge-triggered, and the tick has consumed it.
+        reloaded = service_tick.tick(cfg, svc)
+        if reloaded is not None:
+            keys = reloaded
+            # Re-claimed even if the hotkeys look unchanged: claiming is cheap.
+            _watch(cfg, devices, keys)
+            _forget_lost_presses(devices, keys)
+            logger.info("Applied settings change without restarting")
+
+        dead_devices = _read_key_events(devices, keys, held_modifiers, cfg, svc, current_time)
+        if dead_devices:
+            # Their modifiers' key-ups can't come now, and a Ctrl left held
+            # here would stop F8 dictating (_someone_elses_shortcut).
+            held_modifiers.clear()
+            _drop_dead_devices(dead_devices, devices, cfg)
+            _forget_lost_presses(devices, keys)
+
+        # Pick up keyboards that have (re)appeared. Only while idle: rescanning
+        # mid-recording would add an ungrabbed device to a grabbed set, letting
+        # the hotkey leak into the focused app. Throttled because it opens
+        # every node under /dev/input.
+        if (not use_helper and not rs.state.is_recording
+                and current_time - last_device_scan >= keyboard_devices.RESCAN_SECONDS):
+            last_device_scan = current_time
+            _rediscover_devices(devices)
+
+        # Backstop: we must never hold a keyboard grab while not recording.
+        keyboard_grab.release_if_not_recording()
+        ctrl_kept.let_go_if_held_too_long()
+
+        pass_time = time.time() - current_time
+        if pass_time < INPUT_MIN_PASS_S:
+            time.sleep(INPUT_MIN_PASS_S - pass_time)
+
+
+def _open_keyboards(keyboards) -> list:
+    """The devices to read: the hotkey helper's one stand-in keyboard, or
+    every keyboard (one that vanishes meanwhile is skipped). evdev opens them
+    non-blocking, which the read loop relies on."""
+    if keyboards is not None:
+        logger.info("Hotkeys come from the TuxTalk hotkey helper; no keyboard is opened here")
+        return list(keyboards)
+    devices = []
+    _rediscover_devices(devices)
+    return devices
+
+
+def _keys_to_watch(cfg: Settings, devices):
+    """The hotkeys to watch; None when there are none yet: first-run setup
+    isn't finished, or no hold key is chosen."""
+    if first_run_marker.is_first_run():
+        logger.info("First run detected - onboarding not complete")
+        # Also on stderr: started from a terminal, that's where the user looks.
+        print("Onboarding not complete. No hotkeys will be active until setup is finished.",
+              file=sys.stderr)
+        return None
+
+    keys = hotkey_keys.Hotkeys.from_settings(cfg)
+    if keys.hold_key is None:
+        logger.info("No hotkey configured - service will not monitor any keys")
+        print("No hotkey configured. Complete onboarding to activate dictation.",
+              file=sys.stderr)
+        return None
+
+    # A hotkey is configured and onboarding is done, so from here on every
+    # keypress is supposed to reach us. If none can, say so now rather than
+    # running a poll loop that hears nothing, forever.
+    problem = _why_no_hotkey_reaches_us(cfg.hotkey, devices)
+    if problem is not None:
+        for_log, for_user = problem
+        logger.error(for_log)
+        print(for_log, file=sys.stderr)
+        notices.warn_no_keyboard(for_user)
+    if keys.voice_cmds_combo:
+        logger.info(f"Voice Commands hotkey: {keys.vc_hotkey_str}")
+    return keys
+
+
+def _why_no_hotkey_reaches_us(hold_key: str, devices):
+    """(for the log, for the user) when no keyboard reaches the service at
+    start, or None: the hotkey helper isn't answering, or it or this
+    service reads no keyboard while one is plugged in. With none plugged
+    in yet (a Bluetooth one connects after login) nothing is wrong: the
+    rescan, or the helper, picks it up when it comes."""
+    from .helper_keyboard_access import keyboard_plugged_in
+    from .hotkey_helper_client import HelperKeyboard
+    helper = next((dev for dev in devices if isinstance(dev, HelperKeyboard)), None)
+    if helper is not None and helper.sock is None:
+        return _from_system_check(uinput_helper.HELPER_NOT_ANSWERING)
+    reads_none = not devices if helper is None else helper.helper_keyboards == 0
+    if not reads_none:
+        return None
+    if not keyboard_plugged_in():
+        logger.info("No keyboard is plugged in yet; the hotkeys work once one is")
+        return None
+    if helper is not None:
+        return _from_system_check(uinput_helper.HELPER_SEES_NO_KEYBOARD)
+    advice = uinput_helper.input_access_advice()
+    return (f"No readable keyboard found, so the hotkeys can't work. {advice}",
+            f"{hold_key} won't start dictation yet. {advice}")
+
+
+def _from_system_check(state: str):
+    """(for the log, for the user) from what System check says about the
+    hotkey helper, with where that is for the user."""
+    return state, f"{state}. Open {uinput_helper.SYSTEM_CHECK_PATH}."
+
+
+def _log_ctrl_space_clashes(keys: "hotkey_keys.Hotkeys") -> None:
+    """Say in the log who else uses Ctrl+Space, once per change of dictation
+    keys. It asks gsettings and the like, which a hung dconf can stall for
+    seconds, so it runs beside the hotkey loop; it only logs."""
+    global _clash_lookup_for
+    pair = (keys.hold_key, keys.toggle_key)
+    if pair == _clash_lookup_for:
+        return
+    _clash_lookup_for = pair
+    if ctrl_space.KEY in pair:
+        threading.Thread(target=ctrl_space_clashes.log_clashes, daemon=True).start()
+
+
+def _watch(cfg: Settings, devices, keys: "hotkey_keys.Hotkeys") -> None:
+    """Have the desktop hold *keys* back from the focused app (see
+    _claim_desktop_hotkeys), and tell the hotkey helper and the modifier-key
+    check which keys to look for, and which of them the keyboard options
+    make Compose (read now, not on each press: the desktop can be slow)."""
+    _claim_desktop_hotkeys(cfg)
+    _helper_watch(devices, keys.hold_key, keys.toggle_key, keys.voice_cmds_combo,
+                  keys.paste_last_combo)
+    modifier_hotkeys.note(devices, keys.hold_key, keys.toggle_key,
+                          *ctrl_space.held_with(keys.hold_key),
+                          *ctrl_space.held_with(keys.toggle_key))
+    modifier_hotkeys.read_compose_keys()
+    _log_ctrl_space_clashes(keys)
+
+
+def _on_key_event(event, keys: "hotkey_keys.Hotkeys", held_modifiers, devices, cfg: Settings,
+                  svc, now: float) -> None:
+    """Act on one key event read from a keyboard, TuxTalk's own aside."""
+    track_modifier(held_modifiers, event)
+    if event.code == ctrl_space.MODIFIER and event.value == 0:
+        # As for a Right Ctrl dictation key (_hide_modifier_hotkey): typing
+        # that found it stuck waits for it again.
+        modifier_hotkeys.note_released(event.code)
+        ctrl_kept.let_go(devices)       # once no keyboard holds the real one
+    for key_event in _ctrl_space.events(event, held_modifiers, (keys.hold_key, keys.toggle_key)):
+        # Any hotkey counts as activity, whether or not the auto-timeout is
+        # on now: it can be switched on later, and must then count from the
+        # last real use.
+        if key_event.code in keys.watched():
+            svc.last_activity = now
+        _handle_key_event(key_event, keys.hold_key, keys.toggle_key, keys.voice_cmds_combo,
+                          held_modifiers, devices, cfg, svc.input_device_idx,
+                          paste_last_combo=keys.paste_last_combo)
+
+
+def _read_key_events(devices, keys: "hotkey_keys.Hotkeys", held_modifiers, cfg: Settings, svc,
+                     now: float) -> list:
+    """Act on the key events waiting on *devices*; the devices that failed."""
+    dead_devices = []
+    for dev in keyboard_devices.devices_with_events(devices, INPUT_WAIT_S):
+        try:
+            for event in dev.read():
+                if event.type != ecodes.EV_KEY:
+                    continue
+                # Our own injected key events (see keyboard_grab) come back
+                # through this same read; they are not input.
+                if keyboard_grab.is_own_injected_event(dev, event):
+                    continue
+                _on_key_event(event, keys, held_modifiers, devices, cfg, svc, now)
+        except BlockingIOError:
+            pass
+        except OSError as e:
+            # Device unplugged or suspended mid-read. Drop it so we stop
+            # polling a dead handle, but keep serving the others.
+            logger.warning(f"Input device {getattr(dev, 'name', dev)} failed, dropping it: {e}")
+            dead_devices.append(dev)
+        except Exception as e:
+            # Never swallow silently: an unlogged exception here would turn
+            # a microphone error into an unexplained keyboard lockup.
+            logger.error(f"Error handling input event: {e}", exc_info=True)
+    return dead_devices

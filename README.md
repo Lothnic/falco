@@ -1,5 +1,7 @@
 # Phonon
 
+> **Community Linux app:** See [`linux/`](linux/README.md) for the TuxTalk-based Phonon Linux package, installation steps, and its separate MIT license. The original Phonon code in the rest of this repository remains GPL-3.0.
+
 Open-source voice typing. Fast. Local. Yours.
 macOS is the shipped platform. Windows is in beta; Linux is a preview.
 
@@ -71,7 +73,7 @@ tooltip carries the progress; Windows hides new tray icons behind the **^**
 at the right of the taskbar, so look there. Everything after that is local
 and offline.
 
-Hold **Right Ctrl** to dictate. Double-tap it to latch, then press it again to
+Hold **Right Ctrl** to dictate, or tap it to start and tap it again to
 stop. Right-click the tray icon for the menu. Phonon swallows Right Ctrl while
 it runs, so Right Ctrl stops acting as a modifier; Left Ctrl is untouched.
 To use another key, pick it under **Dictation key** in the tray menu (Right
@@ -240,7 +242,7 @@ password managers are always private.
 - One capsule at the bottom of the screen; it widens with your voice while
   listening and breathes while the text is corrected.
 - Hold Globe (fn) to talk and release to type into the frontmost app.
-- Double-tap Globe to keep recording; tap once to stop and type.
+- Or tap Globe once to keep recording; tap again to stop and type.
 
 Globe (fn) is the default shortcut. Settings can switch the hold key to Right
 Option (⌥), and either hold key can be paired with a Control-Space toggle.
@@ -277,7 +279,7 @@ crates/phonon-llm/     correction sidecar lifecycle and benchmark client
 crates/phonon-profile/ Metal dispatch, model phase, and key-to-insertion profilers
 crates/phonon-core/    pipeline coordination and engine events
 crates/phonon-cli/     the phonon command: app launcher, doctor, bench, data tools
-crates/phonon-hotkey/  hold, tap, and double-tap latch, shared by macOS and Windows
+crates/phonon-hotkey/  hold-to-talk and tap-to-toggle, shared by macOS and Windows
 crates/phonon-win/     Windows tray app, keyboard hook, WASAPI capture, insertion
 crates/phonon-mine/    source-identifier extraction for vocabulary mining
 bar/                   SwiftPM macOS app: Home, History, Dictionary, Settings, capsule

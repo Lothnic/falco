@@ -159,28 +159,38 @@ No enrollment scripts. Users do not read generated sentences aloud.
 ### Shortcut
 
 Default is the bare Globe (fn) key, because the default user is on a Mac
-keyboard. Key-down starts recording at once. A press under 250 ms is a tap;
-a second tap within 350 ms of the first release latches recording on; while
-latched, the next key-down stops and commits. A lone tap yields a capture
-without speech, which the no-speech path discards. Right Option and
-Ctrl+Space remain as alternatives (`shortcut_mode` in settings.json).
+keyboard. Key-down starts recording at once. There are two ways to use the
+key and no setting between them: hold it to talk (release stops and commits),
+or tap it (a press of 250 ms or less) to latch recording on, which keeps the
+recording that began at key-down going, and the next key-down stops and
+commits. There is no double-tap (removed 2026-11-09; `tap_to_toggle` from
+issue #34 is no longer read).
 
-Tap to start and stop (`tap_to_toggle`, off by default, issue #34): a single
-tap latches recording on (the recording that began at key-down keeps going)
-and the next key-down stops it; a hold stays push-to-talk. Right Option is
+A latched recording also stops on its own, so a stray tap cannot leave the mic
+on (macOS; `LatchAutoStop` in `bar/Sources/PhononBar.swift`, where both limits
+live). Speech is the capsule's `VoiceDetector` on the level meter, counted only
+after 0.15 s of unbroken voice so keystrokes do not count. With no speech at all
+8 s after the start, the recording is dropped: no stop cue, no transcription,
+no paste, no card. After speech, 60 s without any stops and commits it as the
+next press would (an empty result then says "didn't hear anything" as usual).
+A held key, Ctrl+Space and meeting recording never stop this way. Windows and
+Linux do not have this yet: their capture loops expose no level signal.
+
+Right Option and Ctrl+Space remain as
+alternatives (`shortcut_mode` in settings.json). Right Option is
 told from Left Option by the device-dependent flag bits (`NX_DEVICERALTKEYMASK`
 0x40 vs `NX_DEVICELALTKEYMASK` 0x20), falling back to the key code (61 right,
 58 left) when a keyboard sends none (#23, from outside PR #29).
 
 Reliability (#21): the hold key is tracked as edges of the event flags. A
 flags-changed event for the key's own key code (63 fn, 61 Right Option) while
-it already reads as held means its release was lost: a hold still recording
-stops there, otherwise the press starts a dictation (before, that press was
-ignored and its release stopped nothing). When macOS disables the event tap
-(timeout or user input), the held modifiers are re-read with
-`CGEventSource.flagsState` and a key no longer held is released. Two lone taps
-within 6 s show a card: hold the key, double-tap, or turn on tap to start and
-stop (once per 10 minutes). e2e.jsonl records `event_tap_disables` and
+it already reads as held means its release was lost: a latched recording
+stops on that press; a hold still recording stops there (if the lost release
+made it a tap, it latched and that press is the stop); idle, the press starts a
+dictation (before, that press was ignored and its release stopped nothing).
+When macOS disables the event tap (timeout or user input), the held modifiers
+are re-read with `CGEventSource.flagsState` and a key no longer held is
+released. e2e.jsonl records `event_tap_disables` and
 `hotkey_represses` since launch.
 
 Permissions: a missing Input Monitoring (with a hold-key shortcut) or
@@ -289,6 +299,68 @@ which carry no buttons. The prompt needs, in order:
   and the next launch repairs a crash mid-dictation. Meeting capture never ducks.
 - Not done: separating the speaker from other voices in the room. macOS voice processing (echo cancellation of the
   Mac's own output) is the next step if ducking is not enough.
+
+## Meeting notes (macOS)
+
+Recording (bar/Sources/MeetingRecording.swift, MeetingController.swift): with Settings › Notes on, a detected call
+asks "take notes?" (or starts by itself with auto-start). Detection (`meeting_capture`) is on by default since
+2026-11-09 (owner's decision; settings schema 3); auto-start (`meeting_auto_start`) stays off, so nothing records
+without a click. Every settings save writes every key, so a stored `false` in a schema 1 or 2 file is the old
+default and cannot be told from a choice: those files read as on once, and the next save writes schema 3, after
+which a `false` is the owner's and stays off. When the migration is what turns detection on (a schema 1 or 2 file
+without `meeting_capture: true`), `meeting_auto_start` is set to false with it, so someone who once enabled
+auto-start and then switched detection off is asked before any recording; they can turn auto-start back on. A file
+that already had detection on keeps its auto-start choice. Meetings/<id>/ holds metadata.json plus 5 s 48 kHz mono
+16-bit WAV chunks of two tracks on one host clock: mic/ (the user) and system/ (the call, ScreenCaptureKit). Each
+track's `<track>_start_offset_samples` places its sample 0 on the shared timeline; Notes shifts both so the
+earlier track starts at 0.
+
+Transcripts (bar/Sources/MeetingTranscript.swift, MeetingTranscriber.swift; engine `meeting.rs`; sidecar
+`transcribe_span`), all on the Mac:
+
+- When a recording stops, an empty transcript.partial.json is written at once (so a quit from then on still
+  transcribes it at the next launch; it goes only when transcript.json is written). Once the recorder has closed
+  its last chunks and metadata.json is final, the meeting stops counting as recording, is queued, and the Notes list
+  reloads so an open page shows it transcribing. Until then Notes shows it as recording, with no Transcribe button.
+  Notes has a Transcribe button for a meeting
+  without a transcript (one recorded before transcripts existed, or one whose last try failed, with the error shown).
+  Meetings are transcribed one at a time.
+- Each track is cut into spans of about 60 s (never over 75 s: Metal Parakeet answers windows up to 82 s, and a
+  longer one would load the MLX copy of the model). A remainder up to 75 s stays one span; a gap in the chunks ends
+  a span. A span that is not the last of its run gives back its last sentence when that sentence ends within 1 s
+  of the cut (and starts 5 s or more in): the next span starts 0.15 s before it, so a sentence is never split.
+- The bar sends one span at a time, `{"cmd":"meeting_span","id","chunks":[{"path","start_sample"}],
+  "start_sample","end_sample"}`, and waits for `{"type":"meeting_span","id","sentences":[{"start","end","text"}],
+  "quiet","audio_seconds","seconds","model"}` (or `"error"`). Its own event type: never read as a dictation's.
+- Dictation goes first. There is one resident speech model; the engine queues spans and hands the ASR sidecar at
+  most one, only when both stacks are ready, no stream is open, no dictation transcript or correction is owed, no
+  key is held (`prewarm` / `stream_start` until `stream_finish` / `stream_stop` / `transcribe`, or
+  `dictation_end` for a dictation that ends without a WAV: discarded, under 80 ms, or a microphone that failed to
+  start), and the last of these was 1 s ago or more. Each of these is a hold with its own start time, and every hold
+  stops counting 120 s after it began, so an end the engine never hears about (an abandoned stream, a result that
+  never came) delays meeting transcripts instead of stopping them. A key
+  pressed while a span is in the sidecar waits for that span only (0.67 s at most for the 20-minute two-track
+  check meeting on MLX; Metal is faster), while the user is still speaking.
+- The sidecar reads only the chunks a span needs (a 2-hour meeting is never in memory), fills a missing stretch
+  with silence, resamples 48 kHz to 16 kHz with the same linear resampler as imported dictation audio
+  (`resample_linear`), and skips the model when no 20 ms frame rises above -50 dBFS RMS (`quiet`: no sentences).
+- Progress: after every span, transcript.partial.json (per track: the track sample transcribed up to, done, and
+  the kept sentences in track seconds; `error` after a failure). A quit or crash resumes from it at the next
+  launch; a quit while recording leaves an empty one so that meeting is transcribed at the next launch. A failed
+  meeting waits for the button, which resumes from the saved cursor. An engine restart re-sends the span in flight.
+- Output: transcript.json `{"schema_version":1,"model","created_at","turns":[{"start_seconds","end_seconds",
+  "speaker":"me"|"call","text"}]}`. Sentences of both tracks go onto the shared timeline by their offsets, in time
+  order; consecutive sentences of one speaker make one turn. Raw Parakeet text (the dictionary's in-decode boosting
+  applies on Metal), no correction model. Everyone on the call is "call": no diarization yet. Words the user
+  dictated to Phonon during the call are not taken out yet, and on speakers the call can leak into "me".
+- Notes: under the player, the transcript as a list (time, You / Call, text), each turn's text selectable, its
+  time a button that seeks the player there; the header's copy button copies the whole transcript as
+  "m:ss You: text" paragraphs. While it runs, "Transcribing… N%" (by track samples done) or "waiting for the speech
+  model"; while recording, a note that the transcript comes at the end.
+- Logs carry meeting ids, counts and timings only, never the text.
+- Check (20-minute Zoom call, two tracks, MLX sidecar outside the app, 2026-11-09): 42 spans, 92 turns, 3,323
+  words in 17.7 s after the model loaded (17.5 s of it in the model); Parakeet's own 120 s / 15 s long-form
+  chunking of each whole track gives 3,335 words. `MeetingTranscriptLiveCheck` (opt in by environment) reruns it.
 
 ## Competing dictation apps
 
@@ -500,7 +572,7 @@ between threads on Windows, so a recording begins and ends on that thread.
 
 ### The dictation key
 
-Right Control, held to talk. Two taps latch; the next press stops. The rules
+Right Control, held to talk. A tap latches; the next press stops. The rules
 are `crates/phonon-hotkey`, ported from the Swift `HoldKeyTapLatch` and tested
 against the same cases. Phonon swallows the key, so Right Control stops acting
 as a modifier while Phonon runs. `PHONON_WIN_HOTKEY` moves it.
@@ -558,8 +630,8 @@ model's vocabulary, case variants, bonus 4 to start and to continue a term, budg
 to `pa serve` as a dictionary request, which swaps it in place between windows (room for about 11k
 terms). The greedy TDT decode follows the trie: a bonus may push it onto a term, a walk commits
 only on a complete term at a word boundary and otherwise rolls back, and a committed boosted term
-takes the dictionary's spelling. Windows answered on the MLX fallback are not boosted. Meetings are
-not transcribed in the app.
+takes the dictionary's spelling. Windows answered on the MLX fallback are not boosted. Meeting spans
+(see "Meeting notes") go through the same decode, so they are boosted too.
 
 Measured (owner dictations, public refiner, 2026-11-02, 733-entry dictionary, 604 terms boosted):
 real_580 WER after the refiner -0.0011 [-0.0019, -0.0003], sep -0.0011 [-0.0020, -0.0005];
@@ -622,6 +694,26 @@ breaks lists. A port of the research
 `linebreak_rule.py`; measured there: prompt step lists 0 -> 96%, formal greetings 0 -> 91%, sign-offs 0 -> 97%;
 held-out outputs changed: minimal 0/301, casual 0/297, prompt 21/285 (real lists), formal 4/300. The Windows and Linux
 corrector applies the same function.
+
+Opener restore (shared output stage, `phonon_llm::opener::restore(raw, refined, mode)`, on the refiner's or the
+user's endpoint's text before the line breaks): the refiner drops a leading discourse opener the owner keeps. When the raw
+transcript starts with Okay / Ok / OK, Well, And or Now (any case, optionally followed by a comma or period, so
+"Okay. Next..." counts) and the refined text does not start with that word (Ok and Okay count as the same), the opener
+goes back in front as "Okay, ", "Well, ", "Now, " or "And ", and the old first word is lowercased unless it is "I" or
+an I-contraction, all caps, internally capitalised (iPhone, GitHub), or written capitalised mid-sentence in the raw
+transcript (a proper noun). "So" is not an opener here: the owner keeps it only 16 times of 28. Nothing changes for
+an empty refined text, a transcript that is only the opener, or a refined text that already starts with it (a raw
+passthrough). Per writing mode, one table (`opener::MODES`): prompt restores; casual restores, and when the refined
+text starts lowercase (casual style) the opener goes in lowercase too ("okay, ...") and the old first word keeps its
+case; minimal restores like prompt, behind one switch (`MINIMAL_RESTORES`) while its data is measured; formal never
+restores (an email or document should not open with "Okay,"); any other mode, or none, never restores. The per-mode
+choice comes from the same 608 owner dictations: 552 prompt, 32 minimal, 24 casual and no formal items, so formal is
+a judgement call. On the Mac it runs in `finish_correction` before the output guard, so a refiner whose only deletion
+was the opener no longer trips the guard's deletion check, and live-text drafts get it too (under the mode the final
+polish would resolve); Windows/Linux run it in `correct_at` (always minimal there) and the iPhone in `Refiner.refine`
+(port in `ios/App/Opener.swift`, checked against the same `opener_cases.json`); Android does not have it yet.
+Measured offline on those 608 dictations: WER against the owner's references 9.74% -> about 8.6%, more than a full
+retrain gained.
 
 Your own model endpoint (issue #24; settings.json `byok_enabled`, `byok_base_url`, `byok_model`; the API key in the
 login Keychain, service `com.infatoshi.phonon.byok`): off by default, no default endpoint, no Phonon-hosted service.

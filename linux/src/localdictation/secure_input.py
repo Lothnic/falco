@@ -1,0 +1,502 @@
+"""Setting up hotkeys and typing without the "input" group.
+
+TuxTalk used to ask for the user to be put in the "input" group: hotkeys
+need to read the keyboard, and typing needs /dev/uinput. That group lets
+every program the user runs read every key, passwords included.
+
+This sets up the safer way, in the same single password prompt:
+
+1. The hotkey helper (hotkey_helper.py) as a system service. It reads the
+   keyboards under a throwaway user (systemd's DynamicUser) that has no
+   network, no home folder, a read-only system and no way to gain more
+   rights, and tells the user at the screen only about hotkeys.
+2. A udev rule that gives /dev/uinput to the user at the screen (logind's
+   "uaccess"), the way Steam does for its controller support. Programs can
+   then make a virtual keyboard to type with, but /dev/uinput can't be used
+   to read anything.
+
+Nothing needs a restart: the service starts at once, and logind grants the
+uinput access as soon as udev re-applies its rules.
+
+The helper is copied to a root-owned folder, so no program the user runs
+can change what the service runs. The install script goes to pkexec on
+standard input, never through a file the user's programs could edit while
+the password dialog is open.
+"""
+import os
+import subprocess
+
+from . import pkexec_runner
+from .config import CTRL_SPACE
+from .hotkey_helper import DEFAULT_SOCKET_DIR, SOCKET_PATH
+from .logger import setup_logger
+
+logger = setup_logger(__name__)
+
+SERVICE = "tuxtalk-hotkeys.service"
+HELPER_DIR = "/usr/local/libexec/tuxtalk"
+HELPER_PATH = f"{HELPER_DIR}/tuxtalk-hotkeys"
+UNIT_PATH = f"/etc/systemd/system/{SERVICE}"
+UINPUT_RULE_PATH = "/etc/udev/rules.d/70-tuxtalk-uinput.rules"
+PYTHON = "/usr/bin/python3"
+
+# Numbered below 73, where systemd's 73-seat-late.rules turns the uaccess tag
+# into an access list for the user at the screen.
+UINPUT_RULE = """\
+# TuxTalk: the user at the screen may create virtual keyboards (to type
+# dictated text), as Steam's 60-steam-input.rules does. /dev/uinput can't be
+# used to read keys. Remove this file, or uninstall from TuxTalk, to undo it.
+KERNEL=="uinput", SUBSYSTEM=="misc", TAG+="uaccess", OPTIONS+="static_node=uinput"
+"""
+
+UNIT = f"""\
+[Unit]
+Description=TuxTalk hotkey helper (hotkeys, Right Ctrl, Right Alt, Left Ctrl; never typing)
+Documentation=https://github.com/ronb1964/TuxTalk
+
+[Service]
+Type=simple
+ExecStart={PYTHON} -I -S {HELPER_PATH}
+Restart=on-failure
+RestartSec=2
+# select() can't watch descriptors from 1024 up; the helper never needs many.
+LimitNOFILE=512
+# A flood of events from programs' virtual keyboards can't take the machine.
+CPUQuota=25%
+MemoryMax=64M
+TasksMax=4
+
+# A throwaway user whose only extra right is reading the keyboards.
+DynamicUser=yes
+SupplementaryGroups=input
+RuntimeDirectory={os.path.basename(DEFAULT_SOCKET_DIR)}
+RuntimeDirectoryMode=0755
+UMask=0077
+
+# Nothing else: no devices but input ones, no network, no home folders, no
+# writing anywhere but its own folder in /run, no way to gain privileges.
+DevicePolicy=closed
+DeviceAllow=char-input rw
+PrivateNetwork=yes
+RestrictAddressFamilies=AF_UNIX
+IPAddressDeny=any
+ProtectHome=yes
+ProtectSystem=strict
+PrivateTmp=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @mount @swap @reboot @raw-io @module @obsolete
+
+[Install]
+WantedBy=multi-user.target
+"""
+
+
+def helper_source():
+    """The helper as it's installed: this TuxTalk's own hotkey_helper.py."""
+    from . import hotkey_helper
+    with open(hotkey_helper.__file__, encoding="utf-8") as f:
+        return f.read()
+
+
+def _heredoc(path, content, delimiter):
+    if delimiter in content:
+        raise ValueError(f"{delimiter} appears in the content for {path}")
+    newline = "" if content.endswith("\n") else "\n"
+    return f"cat > {path} <<'{delimiter}'\n{content}{newline}{delimiter}\n"
+
+
+def _install_file(path, content, delimiter, mode):
+    """Shell lines writing *content* to *path* the safe way: into a new file
+    beside it, then moved over it, so it's never there half-written or
+    with the wrong permissions."""
+    folder = os.path.dirname(path)
+    name = os.path.basename(path)
+    return (f'tmp=$(mktemp {folder}/.{name}.XXXXXX)\n'
+            + _heredoc('"$tmp"', content, delimiter)
+            + f'chown root:root "$tmp"\nchmod {mode} "$tmp"\nmv -fT "$tmp" {path}\n')
+
+
+def install_script(leave_group=False):
+    """The script pkexec runs as root to set it all up. With *leave_group*
+    (switching from the input group) the user also leaves that group, in
+    the same password prompt."""
+    leave = leave_group_lines() if leave_group else ""
+    files = (_install_file(HELPER_PATH, helper_source(), "TUXTALK_HELPER_EOF", "0755")
+             + _install_file(UNIT_PATH, UNIT, "TUXTALK_UNIT_EOF", "0644")
+             + _install_file(UINPUT_RULE_PATH, UINPUT_RULE, "TUXTALK_RULE_EOF", "0644"))
+    return f"""set -euo pipefail
+umask 022
+# The folder the service runs from must be root's own, never a link.
+if [ -L {HELPER_DIR} ] || [ -L {os.path.dirname(HELPER_DIR)} ]; then
+    echo "{HELPER_DIR} is a symbolic link; not installing there" >&2
+    exit 1
+fi
+install -d -m 0755 -o root -g root {HELPER_DIR}
+{files}{leave}systemctl daemon-reload
+systemctl enable {SERVICE}
+# restart, not start: a TuxTalk update brings a new helper with it
+systemctl restart {SERVICE}
+# Until uinput is loaded /dev/uinput is a bare static node the trigger can't
+# reach, and typing would wait for a reboot.
+modprobe uinput 2>/dev/null || true
+udevadm control --reload-rules
+udevadm trigger --action=change --sysname-match=uinput
+for i in $(seq 50); do
+    [ -S {SOCKET_PATH} ] && exit 0
+    sleep 0.1
+done
+echo "The hotkey helper didn't start. See: journalctl -u {SERVICE}" >&2
+exit 1
+"""
+
+
+def uninstall_lines():
+    """Shell lines, run as root, taking the helper and both typing rules
+    (this one and the input group's old one) away again. Part of the
+    uninstall's root script (uninstall.py)."""
+    from .uinput_helper import UDEV_RULE_PATH
+    return f"""systemctl disable --now {SERVICE} 2>/dev/null
+rm -f {UNIT_PATH} {HELPER_PATH} {UINPUT_RULE_PATH} {UDEV_RULE_PATH}
+rmdir --ignore-fail-on-non-empty {HELPER_DIR} 2>/dev/null
+systemctl daemon-reload
+udevadm control --reload-rules
+udevadm trigger --action=change --sysname-match=uinput
+if systemctl is-active --quiet {SERVICE} || [ -e {UNIT_PATH} ] || [ -e {HELPER_PATH} ]; then
+    echo "{NOT_REMOVED} helper"
+fi
+if [ -e {UINPUT_RULE_PATH} ] || [ -e {UDEV_RULE_PATH} ]; then
+    echo "{NOT_REMOVED} rule"
+fi
+"""
+
+
+def leave_group_lines():
+    """Shell lines taking the user who asked (pkexec's PKEXEC_UID, which they
+    can't fake) out of the input group, with the old rule that gave that
+    group /dev/uinput."""
+    from .uinput_helper import UDEV_RULE_PATH
+    return ('user=$(id -nu "${PKEXEC_UID:?}")\n'
+            'gpasswd -d "$user" input || true\n'
+            + _still_in_group_check()
+            + f'rm -f {UDEV_RULE_PATH}\n')
+
+
+# Printed by the root script when the user is still in the input group after
+# gpasswd (the group lives in /usr/lib/group on an immutable system, or
+# gpasswd failed), so Preferences doesn't claim they left it.
+STILL_IN_GROUP = "TUXTALK_STILL_IN_INPUT_GROUP"
+
+# Printed by the uninstall's root script when the package manager refused
+# to remove TuxTalk's package (another install running, say), followed by
+# its last lines. Everything else was still removed.
+PACKAGE_NOT_REMOVED = "TUXTALK_PACKAGE_NOT_REMOVED"
+
+# Printed by uninstall_lines(), followed by "helper" or "rule", for what is
+# still there after removing it, so the uninstall doesn't claim it's gone.
+NOT_REMOVED = "TUXTALK_NOT_REMOVED"
+
+# _pkexec()'s message when the password prompt stayed open past
+# pkexec_runner.SCRIPT_TIMEOUT_S: pkexec was stopped there, and nothing ran as root.
+TIMED_OUT = "That took too long. Please try again."
+
+# _pkexec()'s message, with ok=True, when the time ran out after the
+# password: the script, running as root, couldn't be stopped and was waited
+# for, but its output and exit status were lost, and it may have been cut
+# short (pkexec_runner.run). The caller judges by what's there.
+RAN_TOO_LONG = "TUXTALK_RAN_TOO_LONG"
+
+# install_with_pkexec()'s message when that happened and the helper this
+# TuxTalk brings isn't the one running.
+NOT_CONFIRMED = ("That took too long, and TuxTalk couldn't confirm the hotkey helper "
+                 "is set up. Please try again.")
+
+
+def _still_in_group_check():
+    # No pipe: under pipefail, grep -q quitting early could fail the test.
+    return (f'case " $(id -nG "$user") " in *" input "*) echo {STILL_IN_GROUP} ;; esac\n')
+
+
+def leave_input_group_script():
+    """The script pkexec runs as root to take the user who asked (pkexec's
+    PKEXEC_UID, which they can't fake) out of the input group, with the old
+    rule that gave that group /dev/uinput."""
+    from .uinput_helper import UDEV_RULE_PATH
+    return f"""set -uo pipefail
+user=$(id -nu "${{PKEXEC_UID:?}}")
+gpasswd -d "$user" input
+{_still_in_group_check()}rm -f {UDEV_RULE_PATH}
+udevadm control --reload-rules
+udevadm trigger --action=change --sysname-match=uinput
+exit 0
+"""
+
+
+def leave_input_group_with_pkexec():
+    """(ok, message): out of the input group; takes effect after a restart."""
+    return _run_as_root(leave_input_group_script(), "left the input group")
+
+
+def can_install():
+    """(True, "") when this system can run the helper, else (False, why).
+    Without it, setup falls back to the "input" group."""
+    if os.environ.get("FLATPAK_ID"):
+        return False, "the Flatpak uses the desktop's portals instead"
+    if not os.path.isdir("/run/systemd/system"):
+        return False, "this system doesn't run systemd"
+    if not os.path.isdir("/run/systemd/seats"):
+        return False, "logind isn't tracking who's at the screen"
+    try:
+        ok = subprocess.run([PYTHON, "-I", "-S", "-c",
+                             "import sys; sys.exit(sys.version_info < (3, 8))"],
+                            timeout=10).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        ok = False
+    if not ok:
+        return False, f"{PYTHON} (3.8 or newer) isn't installed"
+    if not any(os.access(os.path.join(d, "pkexec"), os.X_OK)
+               for d in ("/usr/bin", "/bin", "/usr/local/bin")):
+        return False, "pkexec isn't installed"
+    return True, ""
+
+
+def is_installed():
+    return os.path.exists(UNIT_PATH) and os.path.exists(HELPER_PATH)
+
+
+def helper_hello():
+    """The running helper's hello as (version, keyboards it reads), each None
+    when it doesn't say; None when no helper answers."""
+    from .hotkey_helper_client import HelperKeyboard
+    keyboard = HelperKeyboard(connect_timeout=0.5)
+    try:
+        if not os.path.exists(keyboard.socket_path) or not keyboard.connect():
+            return None
+        return keyboard.helper_version, keyboard.helper_keyboards
+    finally:
+        keyboard.close()
+
+
+def running_version():
+    """The running helper's version, from its hello, or None."""
+    hello = helper_hello()
+    return hello[0] if hello else None
+
+
+def keyboards_watched():
+    """How many keyboards the running helper reads, or None: no helper
+    answers, or it is older than 1.12, which doesn't say."""
+    hello = helper_hello()
+    return hello[1] if hello else None
+
+
+def _version(text):
+    """"1.4" -> (1, 4); anything unreadable counts as oldest."""
+    try:
+        return tuple(int(part) for part in text.split("."))
+    except (AttributeError, ValueError):
+        return ()
+
+
+def is_older(running):
+    """Whether the running helper's version *running* is older than the one
+    this TuxTalk brings: System check offers the update. Never for a newer
+    one (an older TuxTalk run again): no password prompt to go back."""
+    from .hotkey_helper import VERSION
+    return running is not None and _version(running) < _version(VERSION)
+
+
+# The oldest helper this TuxTalk works with as it should on any computer.
+# Raised only when a feature or fix everyone needs comes with a newer
+# helper, since TuxTalk then asks at every start to update it. A fix only
+# some computers need asks there alone (missed_keyboard_reason); the
+# rest of a newer helper is offered in System check without asking.
+NEEDED_HELPER_VERSION = "1.11"
+
+# The first helpers that read a keyboard the ones before skipped without a
+# word: one the input group may only read, and one that's a mouse too.
+READ_ONLY_KEYBOARDS_SINCE = "1.12"
+KEYBOARDS_ALSO_MICE_SINCE = "1.13"
+# Why to update a helper before 1.13 on a computer with one: not certain,
+# since a Logitech mouse is one too.
+ALSO_MICE_REASON = ("A keyboard or mouse here is both at once, as Logitech's are, and the "
+                    "hotkey helper on this computer may leave your keyboard out")
+
+
+def missed_keyboard_reason(running):
+    """Why the running helper (version *running*) leaves out a keyboard
+    this computer has, in one sentence without a full stop, or None when
+    it reads them all or none is running."""
+    if running is None:
+        return None
+    from . import helper_keyboard_access as access
+    if (_version(running) < _version(READ_ONLY_KEYBOARDS_SINCE)
+            and access.read_only_keyboards()):
+        return ("Your keyboard can only be read, and the hotkey helper on this computer "
+                "can't use such a keyboard")
+    # Below NEEDED_HELPER_VERSION what's certain is said instead: keys the
+    # helper doesn't report at all (update_offers, outdated_reason).
+    if (_version(NEEDED_HELPER_VERSION) <= _version(running)
+            < _version(KEYBOARDS_ALSO_MICE_SINCE) and access.keyboards_also_mice()):
+        return ALSO_MICE_REASON
+    return None
+
+
+def outdated_reason(running):
+    """Why the running helper (version *running*) needs updating, in one
+    sentence without a full stop, for the screens that offer it besides
+    the question at start."""
+    return (missed_keyboard_reason(running)
+            or "The hotkey helper on this computer is too old for this TuxTalk")
+
+
+def needs_update(running, keys=()):
+    """Whether this TuxTalk asks at start to update the running helper
+    (version *running*): it's older than NEEDED_HELPER_VERSION, can't
+    report one of the dictation *keys* set (hears_key; saved_keys), or
+    leaves out a keyboard here (missed_keyboard_reason)."""
+    return running is not None and (_version(running) < _version(NEEDED_HELPER_VERSION)
+                                    or not all(hears_key(running, key) for key in keys)
+                                    or missed_keyboard_reason(running) is not None)
+
+
+def saved_keys():
+    """The hold and toggle keys in the settings, for needs_update."""
+    from .config import HOTKEY_KEYS, load_config
+    cfg = load_config()
+    return [getattr(cfg, key) for key in HOTKEY_KEYS]
+
+
+# The dictation keys the first helpers didn't report, and the version that
+# does. Here, not in hotkey_helper.py: the helper speaks key codes, and
+# nothing in it would use this.
+KEYS_SINCE = {"Right Ctrl": "1.5", "Right Alt": "1.5", CTRL_SPACE: "1.14"}
+
+
+def hears_key(running, key):
+    """Whether the running helper (version *running*, None when there is
+    none) reports dictation key *key* ("F8", "Right Ctrl")."""
+    return (running is None or key not in KEYS_SINCE
+            or _version(running) >= _version(KEYS_SINCE[key]))
+
+
+def unheard_keys(keys):
+    """Those of dictation *keys* the running hotkey helper is too old to
+    report; the helper is asked its version only when one could be."""
+    if not set(keys) & set(KEYS_SINCE):
+        return []
+    running = running_version()
+    return [k for k in keys if not hears_key(running, k)]
+
+
+def _run_as_root(script, what):
+    """(ok, message) after running *script* through pkexec. (Tests replace
+    this, so a test can never open a password prompt; _pkexec is the work.)"""
+    return _pkexec(script, what)
+
+
+def _pkexec(script, what):
+    """(ok, message) after running *script* through pkexec."""
+    outcome = pkexec_runner.run(["/bin/bash", "-s"], pkexec_runner.SCRIPT_TIMEOUT_S,
+                                script=script)
+    if outcome.status == pkexec_runner.TIMED_OUT:
+        return False, TIMED_OUT
+    if outcome.status == pkexec_runner.UNKNOWN:
+        logger.warning(f"Hotkey helper {what}: ran past the time-out as root; "
+                       "its result is unknown")
+        return True, RAN_TOO_LONG
+    if outcome.status == pkexec_runner.MISSING:
+        return False, "pkexec isn't installed, so TuxTalk can't ask for your password."
+    if outcome.status == pkexec_runner.DONE:
+        logger.info(f"Hotkey helper {what}")
+        out = outcome.stdout
+        if STILL_IN_GROUP in out:
+            logger.warning("Still in the input group after gpasswd")
+        if PACKAGE_NOT_REMOVED in out:
+            logger.warning(f"The package manager didn't remove TuxTalk: {out.strip()}")
+        if NOT_REMOVED in out:
+            logger.warning(f"Not removed as root: {out.strip()}")
+        # The script's own report lines (the markers above), one per line.
+        return True, "\n".join(line for line in out.splitlines() if line.startswith("TUXTALK_"))
+    if outcome.status == pkexec_runner.DECLINED:
+        logger.info(f"Hotkey helper {what}: cancelled at the password prompt")
+        return False, "cancelled"
+    logger.error(f"Hotkey helper {what} failed: {outcome.detail}")
+    return False, outcome.detail or "it failed for an unknown reason"
+
+
+def fix_permissions():
+    """The permission fix behind first-run's Fix Typing and Preferences' Fix
+    Typing Permissions: the hotkey helper where this system can run it, the
+    "input" group where it can't. Returns (ok, message, needs_restart)."""
+    usable, why = can_install()
+    if usable:
+        ok, message = install_with_pkexec()
+        return ok, message, False
+    logger.info(f"Hotkey helper not used ({why}); using the input group instead")
+    from .uinput_helper import install_udev_rule_with_pkexec
+    ok, message = install_udev_rule_with_pkexec()
+    return ok, message, ok
+
+
+def fix_description():
+    """What the fix will do, one line each, for the screens that offer it.
+    The second item is whether a restart follows."""
+    if can_install()[0]:
+        return ([
+            "Installs TuxTalk's hotkey helper, the only program that reads the keyboard. "
+            "It tells TuxTalk about its hotkeys, Right Ctrl or Right Alt going down, and "
+            "Left Ctrl going down and up while Left Ctrl+Space is a dictation key, "
+            "never what you type",
+            "Lets TuxTalk type with a virtual keyboard, as Steam does for game controllers",
+        ], False)
+    return ([
+        "Adds a system rule to allow input device access",
+        "Adds your user to the 'input' group",
+    ], True)
+
+
+def fallback_note():
+    """One line for the screens offering the fix, when it will be the
+    "input" group: why the helper can't be used here, and what the group
+    means. None where the helper is used (or in the Flatpak, which uses
+    neither)."""
+    if os.environ.get("FLATPAK_ID"):
+        return None
+    usable, why = can_install()
+    if usable:
+        return None
+    return (f"TuxTalk's hotkey helper can't run here ({why}), so TuxTalk uses the "
+            "'input' group instead. That lets programs you run read the keyboard, "
+            "which is how most Linux key tools work.")
+
+
+def install_with_pkexec(leave_group=False):
+    """Install (or update) the helper and the typing rule, and with
+    *leave_group* leave the input group too. (ok, message). When the time
+    ran out after the password, it worked only if this TuxTalk's helper is
+    the one running now."""
+    ok, message = _run_as_root(install_script(leave_group), "installed")
+    if ok and message == RAN_TOO_LONG:
+        from .hotkey_helper import VERSION
+        if not (is_installed() and running_version() == VERSION):
+            logger.warning("Hotkey helper install ran too long, and isn't running")
+            return False, NOT_CONFIRMED
+        return True, ""
+    return ok, message

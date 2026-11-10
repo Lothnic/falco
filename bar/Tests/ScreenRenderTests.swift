@@ -112,6 +112,23 @@ final class ScreenRenderTests: XCTestCase {
         try writeMeeting(
             id: "meeting_b", app: ("com.hnc.Discord", "Discord"), title: nil,
             startedSecondsAgo: 2 * 86_400, chunks: 2)
+        // Invented words for the design sync's transcript.
+        let lines: [(Double, Double, TranscriptSpeaker, String)] = [
+            (0.4, 3.1, .me, "Morning both. Can you hear me okay?"),
+            (3.6, 9.8, .call,
+             "Yes, loud and clear. Priya is joining in a minute, she is just finishing the review."),
+            (10.2, 18.5, .me,
+             "Great. I want to settle the onboarding flow today, mostly the second screen and "
+                + "whether the permission prompt comes before or after the sample dictation."),
+            (19.0, 24.2, .call, "After, I think. People trust it more once they have seen it work."),
+            (24.8, 27.0, .me, "Agreed. Let's write that down."),
+        ]
+        let transcript = MeetingTranscript(
+            model: "mlx-community/parakeet-tdt-0.6b-v2", createdAt: "2026-11-09T12:00:00Z",
+            turns: lines.map {
+                MeetingTranscript.Turn(startSeconds: $0.0, endSeconds: $0.1, speaker: $0.2, text: $0.3)
+            })
+        try transcript.save(to: directory.appendingPathComponent("Meetings/meeting_a"))
     }
 
     private func writeRecording(
@@ -230,6 +247,29 @@ final class ScreenRenderTests: XCTestCase {
         }
     }
 
+    func testANoteWithATranscriptAndTheOtherTranscriptStatesRender() throws {
+        let store = store()
+        let note = try XCTUnwrap(store.meetings.first { $0.id == "meeting_a" })
+        let transcript = try XCTUnwrap(note.transcript)
+        XCTAssertEqual(transcript.turns.count, 5)
+        XCTAssertEqual(store.transcriptState(note), .ready(transcript))
+        let states: [(NoteTranscriptState, String)] = [
+            (.ready(transcript), "note_transcript"),
+            (.transcribing(progress: 0.42), "note_transcribing"),
+            (.failed("transcribe span failed: the speech model is not loaded"), "note_transcript_failed"),
+            (.notTranscribed, "note_not_transcribed"),
+        ]
+        for (state, name) in states {
+            let view = NoteDetail(note: note, transcript: state)
+                .frame(width: 700)
+                .background(EmberTheme.window)
+                .foregroundStyle(EmberTheme.ink)
+                .font(.system(size: 13.5))
+            let rep = try snapshot(view, size: CGSize(width: 700, height: 560), name: name, settle: 0.6)
+            XCTAssertGreaterThanOrEqual(rep.pixelsWide, 700)
+        }
+    }
+
     func testInsightsChartsRenderTall() throws {
         let view = InsightsView(store: store())
             .frame(width: 784)
@@ -287,10 +327,9 @@ final class ScreenRenderTests: XCTestCase {
         try snapshot(view, size: CGSize(width: 790, height: 2200), name: "settings_full")
     }
 
-    /// Settings with tap-to-toggle on and two apps pinned to a writing mode.
+    /// Settings with two apps pinned to a writing mode.
     func testSettingsWithPerAppModesRender() throws {
         let store = store()
-        store.updateSettings { $0.tapToToggle = true }
         store.setAppWritingMode("com.apple.Terminal", .minimal)
         store.setAppWritingMode("com.tinyspeck.slackmacgap", .casual)
         XCTAssertEqual(store.dictatedApps.first?.bundleID, "com.apple.Terminal")
@@ -440,7 +479,14 @@ final class ScreenRenderTests: XCTestCase {
             ("notice_accessibility", .needsAccessibility(text)),
             ("notice_not_heard", .notHeard(mic: "MacBook Pro Microphone")),
             ("notice_mic_silent", .micSilent(mic: "AirPods Pro")),
-            ("notice_tap_hint", .tapHint(key: "Globe (fn)")),
+            (
+                "notice_update",
+                .message(
+                    title: "Phonon 1.0.2 is available",
+                    detail: "You have 1.0.1. Update copies the Homebrew command; paste it into "
+                        + "Terminal, then open Phonon again.",
+                    action: "Update")
+            ),
         ]
         for (name, notice) in notices {
             let model = NotPastedModel()

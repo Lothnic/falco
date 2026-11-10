@@ -1,0 +1,369 @@
+#!/usr/bin/env python3
+"""
+GNOME Extension installer for TuxTalk
+"""
+
+import logging
+import os
+import shutil
+import subprocess
+import urllib.error
+import urllib.request
+from typing import Optional, Callable
+
+from . import desktop_detect, gnome_extensions
+
+logger = logging.getLogger(__name__)
+
+
+EXTENSION_UUID = 'talktype@ronb1964.github.io'
+# Every release since 0.15.0 also publishes it as talktype-gnome-extension.zip,
+# for TalkType installs, which look for that name.
+EXTENSION_ZIP_NAME = 'tuxtalk-gnome-extension.zip'
+_LATEST_RELEASE = 'https://github.com/ronb1964/TuxTalk/releases/latest/download'
+EXTENSION_DOWNLOAD_URL = f'{_LATEST_RELEASE}/{EXTENSION_ZIP_NAME}'
+# The release publishes SHA256SUMS.txt alongside the zip. The extension
+# contains JavaScript that runs in GNOME Shell, so verifying the download
+# closes a code-execution vector (a corrupted or tampered zip).
+EXTENSION_CHECKSUMS_URL = f'{_LATEST_RELEASE}/SHA256SUMS.txt'
+
+
+class ChecksumUnavailableError(Exception):
+    """The extension's checksum in the release could not be read."""
+
+
+def _fetch_extension_sha256() -> str:
+    """Fetch the expected sha256 of the extension zip from the latest release.
+
+    Raises ChecksumUnavailableError when the release has no SHA256SUMS.txt
+    (every release since 0.5.17 has one: without it, one was published by
+    mistake), when the file doesn't list the extension, or when the fetch
+    fails for any other reason: the zip is JavaScript that runs in GNOME
+    Shell, and isn't installed unchecked.
+    """
+    from .download_utils import parse_sha256sums
+    try:
+        request = urllib.request.Request(
+            EXTENSION_CHECKSUMS_URL, headers={"User-Agent": "TuxTalk"})
+        with urllib.request.urlopen(request, timeout=10) as response:
+            sums = parse_sha256sums(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            # Also what a release that can't be found at all gives, so the
+            # message says both, with the address.
+            raise ChecksumUnavailableError(
+                f"No SHA256SUMS.txt at {EXTENSION_CHECKSUMS_URL} (404): either the "
+                "release publishes none, or the release can't be found") from e
+        raise ChecksumUnavailableError(f"Could not fetch extension checksums: {e}") from e
+    except Exception as e:
+        raise ChecksumUnavailableError(f"Could not fetch extension checksums: {e}") from e
+
+    digest = sums.get(EXTENSION_ZIP_NAME)
+    if not digest:
+        raise ChecksumUnavailableError(
+            f"{EXTENSION_ZIP_NAME} is not listed in the release's SHA256SUMS.txt"
+        )
+    return digest
+
+
+def is_extension_available() -> bool:
+    """
+    Check if GNOME extension feature is available
+
+    Returns:
+        bool: True if running GNOME desktop
+    """
+    return desktop_detect.is_gnome()
+
+
+def is_extension_installed() -> bool:
+    """Check if TuxTalk GNOME extension is installed"""
+    return gnome_extensions.is_extension_installed(EXTENSION_UUID)
+
+
+def is_extension_enabled() -> bool:
+    """Check if TuxTalk GNOME extension is enabled"""
+    return gnome_extensions.is_extension_enabled(EXTENSION_UUID)
+
+
+def menu_location() -> str:
+    """Where this desktop shows TuxTalk's menu, for the welcome screen's and
+    Setup Complete's tips: plain GNOME has no tray, so "the tray icon" sent
+    people looking for nothing."""
+    if is_extension_enabled():
+        return "its icon in the top bar"
+    if desktop_detect.tray_host_available():
+        return "its tray icon"
+    return "open TuxTalk again from your apps"
+
+
+def get_extension_status() -> dict:
+    """Whether the extension can run here (GNOME), is installed and is
+    enabled, for Preferences' extension status."""
+    return {
+        'available': is_extension_available(),
+        'installed': is_extension_installed(),
+        'enabled': is_extension_enabled(),
+    }
+
+
+# How long an install waits for another one to finish.
+INSTALL_WAIT_S = 60
+
+
+def _swap_paths():
+    """(the extension's folder, its old copy, the new copy being made). The
+    copies are kept, hidden, in the extensions folder itself (its real
+    place, if it's a link), so the renames never cross filesystems; GNOME
+    skips a folder whose name isn't its extension's id."""
+    ext_dir = os.path.realpath(os.path.dirname(gnome_extensions.extension_folder(EXTENSION_UUID)))
+    return (os.path.join(ext_dir, EXTENSION_UUID), os.path.join(ext_dir, f".{EXTENSION_UUID}.old"),
+            os.path.join(ext_dir, f".{EXTENSION_UUID}.new"))
+
+
+def _swap_in(source_dir):
+    """Put a copy of *source_dir* in the extension's place, the old one going
+    only once the new one is in its place: removed first, a copy that failed
+    partway (a full disk) left GNOME with no TuxTalk menu at all. Installs
+    take turns (Preferences and first run at once used each other's
+    folders)."""
+    from . import download_utils
+    target, old, staging = _swap_paths()
+    with download_utils.install_turn("extension", "the GNOME extension", wait_s=INSTALL_WAIT_S):
+        # GNOME keeps its menu even if this copy fails.
+        download_utils.restore_cut_off_swap(target, old)
+        download_utils.remove_tree(staging)
+        try:
+            shutil.copytree(source_dir, staging)
+            download_utils.replace_folder(staging, target, old)
+        finally:
+            download_utils.remove_tree(staging)
+
+
+def recover_cut_off_install():
+    """At start: an install killed between moving the old extension aside
+    and moving the new one in left GNOME no TuxTalk menu, the complete copy
+    hidden, until the next install. It is put back here, with nothing
+    downloaded, unless another install is running now (that one puts it
+    back). Never raises."""
+    from . import download_utils
+    target, old, _staging = _swap_paths()
+    if not os.path.lexists(old):
+        return
+    try:
+        with download_utils.install_turn("extension", "the GNOME extension", wait_s=0):
+            download_utils.restore_cut_off_swap(target, old)
+    except OSError as e:        # busy, or the lock can't be made: next start
+        logger.info(f"The GNOME extension's folder wasn't checked this time: {e}")
+
+
+def install_extension_from_local(source_dir: str, auto_enable: bool = True) -> bool:
+    """
+    Install extension from local directory
+
+    Args:
+        source_dir: Path to extension source directory
+        auto_enable: If True, automatically enable the extension after installation
+
+    Returns:
+        bool: True if successful. Installed but not turned on is a failure:
+        without a tray, the extension's menu is how TuxTalk is used.
+    """
+    try:
+        target_dir = gnome_extensions.extension_folder(EXTENSION_UUID)
+        os.makedirs(os.path.dirname(target_dir), exist_ok=True)
+        _swap_in(source_dir)
+        logger.info(f"Extension installed to {target_dir}")
+
+        if auto_enable and not enable_extension():
+            logger.error("Extension installed, but GNOME wouldn't turn it on")
+            return False
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to install extension: {e}")
+        return False
+
+
+def checkout_extension_path() -> Optional[str]:
+    """The extension in the source checkout the dev version runs from, or
+    None. The AppImage carries none (container-build.sh): it downloads the
+    extension from the release, so an extension fix needs no new AppImage."""
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    path = os.path.join(root, "gnome-extension", EXTENSION_UUID)
+    if os.path.isfile(os.path.join(path, "metadata.json")):
+        logger.info(f"The GNOME extension comes from the source checkout: {path}")
+        return path
+    return None
+
+
+def install_extension(progress_callback: Optional[Callable] = None) -> bool:
+    """
+    Install the GNOME extension: the source checkout's in the dev version,
+    downloaded from the GitHub release otherwise (or if that copy fails).
+
+    Args:
+        progress_callback: Optional function(message, percent) for progress updates
+
+    Returns:
+        bool: True if successful
+    """
+    report = progress_callback or (lambda message, percent: None)
+    if not is_extension_available():
+        report("GNOME desktop not detected", 0)
+        return False
+
+    checkout_path = checkout_extension_path()
+    if checkout_path:
+        # Kept low: a failed copy falls back to the download, which starts at
+        # 10%, and the bar mustn't go backwards.
+        report("Installing the extension...", 5)
+        # Only a failed copy is worth a download: GNOME refusing to turn it
+        # on would refuse the downloaded one too.
+        if install_extension_from_local(checkout_path, auto_enable=False):
+            if not enable_extension():
+                logger.error("Extension installed, but GNOME wouldn't turn it on")
+                report("GNOME wouldn't turn the extension on", 0)
+                return False
+            report("Extension installed successfully!", 100)
+            return True
+        logger.warning("Couldn't install the checkout's extension; downloading it")
+
+    # Fall back to downloading from GitHub
+    return download_and_install_extension(progress_callback)
+
+
+def download_and_install_extension(progress_callback: Optional[Callable] = None) -> bool:
+    """
+    Download and install GNOME extension from GitHub release: how the
+    AppImage, .deb and .rpm get it.
+
+    Args:
+        progress_callback: Optional function(message, percent) for progress updates
+
+    Returns:
+        bool: True if successful
+    """
+    import tempfile
+    import zipfile
+
+    report = progress_callback or (lambda message, percent: None)
+    if not is_extension_available():
+        report("GNOME desktop not detected", 0)
+        return False
+
+    try:
+        # Create temp directory
+        with tempfile.TemporaryDirectory() as temp_dir:
+            zip_path = os.path.join(temp_dir, 'extension.zip')
+
+            report("Downloading extension...", 10)
+
+            # Download hook
+            def download_progress_hook(downloaded, total_size):
+                if total_size > 0:
+                    percent = min(90, 10 + int((downloaded / total_size) * 70))
+                    report(f"Downloading... {int((downloaded / total_size) * 100)}%", percent)
+
+            # Download extension zip. The timeout keeps a stalled connection
+            # from hanging the install dialog forever. The sha256 verifies
+            # the JS bundle before install.
+            from .download_utils import download_file
+            try:
+                expected_sha256 = _fetch_extension_sha256()
+            except ChecksumUnavailableError as e:
+                logger.error(f"Refusing to install an unverified extension: {e}")
+                report("Could not verify the extension download", 0)
+                return False
+            if not download_file(
+                EXTENSION_DOWNLOAD_URL,
+                zip_path,
+                timeout=60,
+                progress_hook=download_progress_hook,
+                expected_sha256=expected_sha256,
+            ):
+                report("Extension download failed or was corrupted", 0)
+                return False
+
+            report("Extracting extension...", 85)
+
+            # Extract zip
+            extract_dir = os.path.join(temp_dir, 'extracted')
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_dir)
+
+            # Find extension directory in extracted files
+            extension_source = os.path.join(extract_dir, EXTENSION_UUID)
+            if not os.path.exists(extension_source):
+                # Maybe it's directly in extract_dir
+                extension_source = extract_dir
+
+            report("Installing and enabling extension...", 90)
+
+            # Enabling adds it to org.gnome.shell's enabled-extensions, so it
+            # stays on across logout/login; install_extension_from_local does it.
+            if not install_extension_from_local(extension_source):
+                report("The extension couldn't be installed or turned on", 0)
+                return False
+
+            report("Extension installed successfully!", 100)
+            return True
+
+    except Exception as e:
+        report(f"Installation failed: {e}", 0)
+        logger.error(f"Failed to download/install extension: {e}")
+        return False
+
+
+def enable_extension() -> bool:
+    """
+    Enable the TuxTalk GNOME extension
+
+    Returns:
+        bool: True if successful
+    """
+    return gnome_extensions.enable_extension(EXTENSION_UUID)
+
+
+def uninstall_extension() -> bool:
+    """
+    Uninstall the TuxTalk GNOME extension
+
+    Returns:
+        bool: True if successful
+    """
+    try:
+        target_dir = gnome_extensions.extension_folder(EXTENSION_UUID)
+
+        if os.path.exists(target_dir):
+            # First, disable the extension (removes from gsettings)
+            try:
+                done = subprocess.run(
+                    ['gnome-extensions', 'disable', EXTENSION_UUID],
+                    capture_output=True, text=True, errors="replace", timeout=10)
+                if done.returncode:
+                    logger.info(f"gnome-extensions disable said: {done.stderr.strip()}")
+            except (OSError, subprocess.SubprocessError) as e:
+                # A shell that never loaded it doesn't know it; forgetting it
+                # below covers that.
+                logger.info(f"gnome-extensions disable didn't run: {e}")
+
+        # Disabling puts it on disabled-extensions, and a failed disable
+        # (a shell that never loaded it) leaves it on enabled-extensions:
+        # an uninstall leaves it on neither. Also when the folder is
+        # already gone, so a folder deleted by hand leaves no entry behind.
+        gnome_extensions.forget_extension(
+            EXTENSION_UUID, ("disabled-extensions", "enabled-extensions"))
+
+        if os.path.exists(target_dir):
+            # Remove the extension files
+            shutil.rmtree(target_dir)
+            logger.info("Extension uninstalled")
+            return True
+        else:
+            logger.info("Extension not installed")
+            return False
+
+    except Exception as e:
+        logger.error(f"Failed to uninstall extension: {e}")
+        return False
