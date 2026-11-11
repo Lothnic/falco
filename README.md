@@ -13,7 +13,7 @@ separately distributed
 cleanup and adds a Rune dashboard and recording overlay. Falco is not an
 official Phonon or TuxTalk release.
 
-[Full Linux guide](linux/README.md) · [Upstream Phonon README](UPSTREAM-README.md)
+[Website](https://falco.lothnic.dev) · [Full Linux guide](linux/README.md) · [Upstream Phonon README](UPSTREAM-README.md)
 
 ## Features
 
@@ -142,13 +142,22 @@ cargo build --release --locked --manifest-path linux/rune-overlay/Cargo.toml
 cargo test --manifest-path linux/rune-overlay/Cargo.toml
 ```
 
+Build and test the website:
+
+```bash
+cd website
+npm install
+npm test
+```
+
 `localdictation` is Falco's internal Python package name, retained from
 TuxTalk.
 
 ## Repository layout
 
-Only `linux/` is the Falco application. The rest of the repository is the
-upstream Phonon source, kept for history and reference under its own licenses.
+Only `linux/` is the Falco application. `website/` is the Falco landing page and
+browser demo. The remaining code is the upstream Phonon source, kept for
+history and reference under its own licenses.
 
 | Path | Contents |
 | --- | --- |
@@ -160,7 +169,7 @@ upstream Phonon source, kept for history and reference under its own licenses.
 | `ml/` | Phonon refiner training and evaluation pipeline |
 | `android/` | Phonon Android keyboard (development build) |
 | `ios/` | Phonon iPhone keyboard (development build) |
-| `website/` | Phonon website |
+| `website/` | Falco landing page, browser dictation demo, and hosted `install.sh` |
 
 `UPSTREAM-README.md` holds the Phonon README this fork started from. `SPEC.md`
 and `DISTRIBUTION.md` document the upstream macOS and Windows projects and do

@@ -2,6 +2,8 @@
 
 An experimental community Linux dictation app built on [TuxTalk](https://github.com/ronb1964/TuxTalk), using the separately distributed [Phonon refiner](https://huggingface.co/Infatoshi/phonon-refiner-1.7b) for local transcript cleanup. This is not an official Phonon or TuxTalk release. Its tray and service are adapted from TuxTalk, with a Rune dashboard and recording overlay.
 
+[Website](https://falco.lothnic.dev) · [Main README](../README.md)
+
 The default speech model is Parakeet Ultra v3. The Phonon refiner is the default cleanup model and is English-only. It is downloaded separately when enabled; until its download is installed and it is loaded, dictation uses the unrefined transcript. The speech and cleanup model downloads total roughly 1.7 GB. Processing is local after downloading.
 
 ## Quick install
