@@ -1,9 +1,11 @@
-# Phonon website
+# Falco website
 
-Production landing page for [phonon.sh](https://phonon.sh).
+Landing page for [Falco](https://github.com/Lothnic/falco), the local dictation app for Linux.
 
 ```sh
+npm install
 npm run dev
 npm test
-vercel --prod
 ```
+
+`npm test` builds the site and checks the rendered HTML for the Falco copy, install commands, and the `public/install.sh` script.

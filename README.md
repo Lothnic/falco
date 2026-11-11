@@ -65,6 +65,27 @@ the permissions it needs.
 
 ## Install
 
+The quick installer handles the system packages and the app in one command:
+
+```bash
+curl -fsSL https://falco.lothnic.dev/install.sh | bash
+```
+
+It supports apt, dnf, pacman, and zypper, installs the dependencies with
+`sudo`, and then installs Falco under your user account. Add
+`--with-rune` (with Rust 1.99.1 or newer already installed) to build the Rune
+dashboard and overlay first:
+
+```bash
+curl -fsSL https://falco.lothnic.dev/install.sh | bash -s -- --with-rune
+```
+
+Use `--no-deps` if you prefer to install the packages yourself, and `--ref`
+to install a tag or branch other than `main`. The installer is plain Bash; you
+can download it and read it before running it.
+
+### Manual install
+
 Install the system packages (package names vary by distribution):
 
 ```bash

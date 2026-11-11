@@ -1,34 +1,49 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
-test("renders the Phonon landing page", async () => {
+test("renders the Falco landing page", async () => {
   const html = await readFile(new URL("../.next/server/app/index.html", import.meta.url), "utf8");
 
-  assert.match(html, /<title>Phonon: fast, local voice typing<\/title>/i);
-  assert.match(html, /Fast\. Local\.<br\/>Yours\./);
-  assert.match(html, /Open-source voice typing/);
-  assert.doesNotMatch(html, /Open-source voice typing for Mac/);
-  assert.match(html, /Local by design/);
-  assert.match(html, /Available now\./);
-  assert.match(html, /brew install --cask infatoshi\/tap\/phonon/);
-  assert.match(html, /releases\/latest\/download\/Phonon\.dmg/);
-  assert.match(html, /Copy Homebrew install command/);
-  assert.ok(
-    html.indexOf("brew install --cask infatoshi/tap/phonon") <
-      html.indexOf("Get Phonon for macOS"),
-    "install command should appear above the macOS download row",
-  );
-  assert.doesNotMatch(html, /being prepared|Release in preparation/);
-  assert.doesNotMatch(html, /phonon-app\.png|MacBook Pro Microphone|328 voice WPM/);
-  assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
-  assert.match(html, /Beta\. Runs on the CPU\./);
-  assert.doesNotMatch(html, /Untested on real hardware|Nobody has run it/);
-  assert.doesNotMatch(html, /Personal polish/);
-  assert.match(html, /releases\/download\/v0\.2\.0-win-beta\.1\/phonon-win\.exe/);
-  assert.match(html, /Windows protected your PC/);
-  assert.match(html, /Right Ctrl/);
-  assert.match(html, /3\.8 GB downloaded on first run/);
-  assert.match(html, /Windows Server 2022/);
-  assert.match(html, /16 GB RAM recommended/);
+  assert.match(html, /<title>Falco: local dictation for Linux<\/title>/i);
+  assert.match(html, /data-theme="dark"/);
+  assert.match(html, /Speak\.<br\/>It types\.<br\/>Nothing<br\/>/);
+  assert.match(html, /Your voice never leaves the room\./);
+  assert.match(html, /Six things it does/);
+  assert.match(html, /Parakeet Ultra v3/);
+  assert.match(html, /Optional local cleanup/);
+  assert.match(html, /curl -fsSL https:\/\/falco\.lothnic\.dev\/install\.sh \| bash/);
+  assert.match(html, /Copy quick install command/);
+  assert.match(html, /git clone https:\/\/github\.com\/Lothnic\/falco\.git/);
+  assert.match(html, /sudo apt install python3/);
+  assert.match(html, /Copy manual packages command/);
+  assert.match(html, /Copy from a checkout command/);
+  assert.match(html, /Early source package/);
+  assert.match(html, /Not an official Phonon or TuxTalk release\./);
+  assert.match(html, /Rune dashboard/);
+  assert.match(html, /Wayland or X11/);
+  assert.match(html, /Loading model/);
+  assert.doesNotMatch(html, /Whistle/i);
+  assert.doesNotMatch(html, /Fast\. Local\./);
+  assert.doesNotMatch(html, /brew install --cask infatoshi\/tap\/phonon/);
+  assert.doesNotMatch(html, /Get Phonon for macOS/);
+  assert.doesNotMatch(html, /Windows beta/);
+});
+
+test("ships a curl-to-bash installer", async () => {
+  const path = fileURLToPath(new URL("../public/install.sh", import.meta.url));
+  const source = await readFile(path, "utf8");
+
+  execFileSync("bash", ["-n", path]);
+
+  const help = execFileSync("bash", [path, "--help"], { encoding: "utf8" });
+  assert.match(help, /Usage: install\.sh/);
+  assert.match(help, /--with-rune/);
+  assert.match(help, /--no-deps/);
+
+  assert.match(source, /curl -fL --proto '=https'/);
+  assert.match(source, /bash linux\/install\.sh/);
+  assert.match(source, /github\.com\/\$REPO\/archive\/\$REF/);
 });

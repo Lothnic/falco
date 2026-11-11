@@ -1,38 +1,45 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Archivo, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const archivo = Archivo({
+  variable: "--font-archivo",
   subsets: ["latin"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
   subsets: ["latin"],
+  weight: ["400", "500"],
+  display: "swap",
 });
+
+const themeScript = `(function(){try{var t=localStorage.getItem("falco-theme");if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t}}catch(e){}})();`;
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://phonon.sh"),
-  title: "Phonon: fast, local voice typing",
+  title: "Falco: local dictation for Linux",
   description:
-    "Fast, local voice typing that understands your vocabulary and runs on your Mac.",
-  icons: {
-    icon: "/phonon-icon.png",
-    apple: "/phonon-icon.png",
-  },
+    "Hold a key, speak, and clean text appears in the app you are using. Falco runs speech recognition and optional cleanup on your Linux machine.",
   openGraph: {
-    title: "Phonon: fast, local voice typing",
-    description: "Voice typing that runs on your Mac and keeps your words yours.",
+    title: "Falco: local dictation for Linux",
+    description:
+      "Local dictation for Linux. Hold a key, speak, and the words land in the focused app.",
     type: "website",
-    url: "https://phonon.sh",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0b2352",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>{children}</body>
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body className={`${archivo.variable} ${plexMono.variable}`}>{children}</body>
     </html>
   );
 }

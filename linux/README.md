@@ -4,6 +4,27 @@ An experimental community Linux dictation app built on [TuxTalk](https://github.
 
 The default speech model is Parakeet Ultra v3. The Phonon refiner is the default cleanup model and is English-only. It is downloaded separately when enabled; until its download is installed and it is loaded, dictation uses the unrefined transcript. The speech and cleanup model downloads total roughly 1.7 GB. Processing is local after downloading.
 
+## Quick install
+
+On a supported Linux desktop, the hosted installer handles the dependencies
+and the app in one command:
+
+```sh
+curl -fsSL https://falco.lothnic.dev/install.sh | bash
+```
+
+It uses apt, dnf, pacman, or zypper for the system packages, then installs
+Falco under `~/.local/share/falco-app` and adds `~/.local/bin/falco`. To build
+the optional Rune dashboard and overlay first (Rust 1.99.1 or newer required),
+use:
+
+```sh
+curl -fsSL https://falco.lothnic.dev/install.sh | bash -s -- --with-rune
+```
+
+Pass `--no-deps` to skip package installation, or `--ref` to install a branch
+or tag other than `main`.
+
 ## Ubuntu setup
 
 Install the system dependencies (package names vary on other distributions):
