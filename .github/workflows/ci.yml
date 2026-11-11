@@ -19,9 +19,20 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo nextest run --workspace
       - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: PYTHONPATH=. uv run --with pytest --with numpy pytest
+      - run: PYTHONPATH=. uv run --with pytest --with numpy pytest tests
       - run: uv run --with ruff ruff check sidecar tests scripts
       - run: swift test --package-path bar
+
+  linux-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pytest python3-numpy python3-evdev python3-gi python3-dbus python3-sounddevice python3-toml
+      - name: Test Linux app
+        run: PYTHONPATH=linux/src /usr/bin/python3 -m pytest linux/tests -q
 
   website:
     runs-on: ubuntu-latest
