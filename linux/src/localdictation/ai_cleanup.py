@@ -191,9 +191,55 @@ def _correction_messages(sentence, mode="minimal"):
         {"role": "system", "content": (
             "Rewrite the raw dictation transcript into the exact text the speaker intended. "
             "Fix recognition errors and technical terms, keep the speaker's wording and casing style, "
-            f"do not add or drop content.\nWriting mode: {mode} ({context}).")},
+            "do not add or drop content. The transcript may be in English, Hindi, Hinglish or "
+            "another language: keep its language and script exactly, and never translate it.\n"
+            f"Writing mode: {mode} ({context}).")},
         {"role": "user", "content": sentence},
     ]
+
+
+# The 1B models are not trained on Phonon's prompt, and without examples they
+# translate Hindi. A few short examples in English, Hindi and Hinglish are
+# what keeps the language and makes the correction handling reliable.
+CLEANUP_SYSTEM = (
+    "You clean up dictated text. Return only the cleaned transcript, with no "
+    "commentary. Remove filler words and stutters, and accidentally repeated "
+    "words. When the speaker corrects themselves (\"no wait\", \"I mean\", "
+    "\"sorry\", \"make that\", \"scratch that\"), keep the corrected version and "
+    "delete the wrong part and the correction phrase. Fix capitalization and "
+    "punctuation around what you deleted. Keep every other word exactly as "
+    "spoken. Keep the transcript's language and script exactly: Hindi stays "
+    "Hindi, Hinglish stays Hinglish, English stays English; never translate. "
+    "If the transcript uses Roman letters for Hindi, keep Roman letters; do not "
+    "change the script."
+)
+CLEANUP_EXAMPLES = (
+    ("Um, so the the van is ready.", "So the van is ready."),
+    ("Um, meet me at three, no wait, four.", "Meet me at four."),
+    ("उम, मैं कल दिल्ली जा रहा हूँ, नहीं रुको, परसों जा रहा हूँ।",
+     "मैं परसों दिल्ली जा रहा हूँ।"),
+    ("Um, main kal Delhi ja raha hoon, no wait, parson.",
+     "Main parson Delhi ja raha hoon."),
+)
+
+
+def _cleanup_messages(sentence):
+    """The prompt a general 1B model gets (Gemma 3, Llama 3.2), few-shot."""
+    messages = [{"role": "system", "content": CLEANUP_SYSTEM}]
+    for before, after in CLEANUP_EXAMPLES:
+        messages += [{"role": "user", "content": before},
+                     {"role": "assistant", "content": after}]
+    messages.append({"role": "user", "content": sentence})
+    return messages
+
+
+def _phonon_selected():
+    """Whether the refiner running is Phonon's own model."""
+    try:
+        from . import ai_download
+        return ai_download.selected_model() == "phonon"
+    except Exception:
+        return True
 
 
 def _line_count(text: str) -> int:
@@ -206,11 +252,15 @@ class CorrectionEngine(AIServer):
     selected text (voice editing). One server answers both."""
 
     def __init__(self):
-        super().__init__(warm_up=_correction_messages(_WARM_UP))
+        warm_up = (_correction_messages(_WARM_UP) if _phonon_selected()
+                   else _cleanup_messages(_WARM_UP))
+        super().__init__(warm_up=warm_up)
 
     def correct(self, sentence: str, timeout: float = 6.0, *, mode: str = "minimal"):
         """The model's cleaned version of *sentence*, or None on any problem."""
-        return self.ask(_correction_messages(sentence, mode),
+        messages = (_correction_messages(sentence, mode) if _phonon_selected()
+                    else _cleanup_messages(sentence))
+        return self.ask(messages,
                         min(2048, max(64, len(sentence) + 32)), timeout, what="Phonon refiner")
 
     def edit(self, text: str, instruction: str):

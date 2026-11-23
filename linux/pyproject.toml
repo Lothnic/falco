@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "falco-dictation"
-version = "2.4.0"
+version = "2.4.1"
 description = "Voice dictation for Linux: hold a key, talk, and your words are typed for you."
 authors = ["Ron"]
 license = "MIT"
