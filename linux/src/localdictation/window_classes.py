@@ -56,6 +56,9 @@ _CODE_EDITOR_CLASSES_LOWER = frozenset({
     "code", "code-oss", "code-url-handler", "codium", "vscodium",
     "dev.zed.zed", "zed", "sublime_text", "geany", "org.gnome.builder",
     "org.kde.kdevelop", "neovide",
+    # AI coding tools and T3 Code: their windows are code, not prose.
+    "cursor", "com.cursor.cursor", "opencode", "ai.opencode.desktop",
+    "t3code", "t3-code", "t3code-beta", "t3-code-beta", "t3 code",
 })
 
 

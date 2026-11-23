@@ -141,6 +141,26 @@ you. **Resume it after dictating** starts them again when the dictation ends;
 turn it off to leave them paused. If a browser accepts the play request but
 stays paused, Falco checks once and toggles it to recover.
 
+## Developer mode
+
+Under **Preferences → Advanced → Developer mode**, spoken code is written as
+code instead of prose. Choose **In code apps** (the default: code editors and
+terminals) or **Always**.
+
+- File names: "open main dot py" → `open main.py`; "edit src slash components
+  slash button dot tsx" → `edit src/components/button.tsx`.
+- Casing: "camel case get user id" → `getUserId`; "snake case get user id" →
+  `get_user_id`; also pascal, kebab, constant, upper and lower.
+- Symbols: "use backtick npm run build backtick" → ``use `npm run build` ``;
+  "wrap it in open paren x close paren" → `wrap it in (x)`; "a fat arrow b" →
+  `a => b`.
+- Common developer spellings: GitHub, TypeScript, Node.js, Postgres,
+  Kubernetes, T3 Code and more.
+
+Code dictation keeps the transcript exact: the prose refiner and AI cleanup
+are skipped so they cannot rewrite code. A word the model still mishears can
+be taught in **Preferences → Words**.
+
 ## The command line
 
 `falco` is more than the launcher. `falco transcribe` turns a file into text

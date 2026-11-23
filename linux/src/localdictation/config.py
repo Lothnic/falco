@@ -94,6 +94,14 @@ REFINER_MODES = {
     "auto": "Match the focused app",
 }
 
+# When spoken file names, casing, symbols and developer names become code
+# (code_dictation.py).
+DEVELOPER_MODES = {
+    "off": "Off",
+    "auto": "In code apps",
+    "on": "Always",
+}
+
 # The dictation keys (hotkey, toggle_hotkey), by the name the settings save and
 # Preferences and Help show, with the key's evdev name. Many laptops and
 # compact keyboards send F1-F12 only with Fn held (Discussion #18), so three
@@ -275,6 +283,8 @@ class Settings:
     # fix "3, no wait, 4" with a local AI model (ai_download.py downloads it)
     ai_corrections: bool = True
     refiner_mode: str = "minimal"
+    # spoken file names, casing and symbols become code (code_dictation.py)
+    developer_mode: str = "auto"
     # Shift + dictation key rewrites the selected text with the same AI model
     voice_editing: bool = False
     # toggle recordings stop by themselves when you stop talking (silence.py)
@@ -359,6 +369,9 @@ def _validation_problems(s: Settings) -> list[tuple[str, str]]:
     if s.refiner_mode.lower() not in REFINER_MODES:
         problems.append(("refiner_mode", "Invalid Phonon refiner writing mode"))
 
+    if s.developer_mode.lower() not in DEVELOPER_MODES:
+        problems.append(("developer_mode", "Invalid developer mode"))
+
     if s.injection_mode.lower() not in VALID_INJECTION_MODES:
         problems.append(("injection_mode", f"Invalid injection_mode '{s.injection_mode}'. "
                                            "Must be 'type', 'paste', or 'auto'"))
@@ -424,7 +437,8 @@ def validate_config(s: Settings) -> None:
 
 
 _CASE_FREE_CHOICES = ("device", "mode", "injection_mode", "indicator_position", "refiner_mode",
-                      "indicator_size", "indicator_style", "indicator_color_mode")
+                      "developer_mode", "indicator_size", "indicator_style",
+                      "indicator_color_mode")
 
 
 def _migrate_settings(s: Settings) -> Settings:
@@ -951,6 +965,7 @@ LIVE_APPLIED_KEYS = {
     "press_enter_delay",
     "ai_corrections",
     "refiner_mode",
+    "developer_mode",
     "voice_editing",
     # Hands-free auto-stop; read when each toggle recording starts.
     "auto_stop_silence",

@@ -83,6 +83,8 @@ auto_languages = ()
 ai_engine = None
 ai_corrections = False
 refiner_mode = "minimal"
+# Spoken file names, casing and symbols become code (code_dictation.py).
+developer_mode = "auto"
 rune_live_preview = False
 # Hear a dictation in phrases while the speaker talks (streaming.py), so the
 # release only transcribes the last one.
@@ -113,6 +115,7 @@ def apply(cfg):
     global resume_media
     global paste_last_hotkey
     global refiner_mode, rune_live_preview
+    global developer_mode
     global streaming_dictation
     log_transcripts = cfg.log_transcripts
     usage_stats = cfg.usage_stats
@@ -150,6 +153,7 @@ def apply(cfg):
     numbers_language = effective_language(cfg)
     ai_corrections = bool(cfg.ai_corrections)
     refiner_mode = cfg.refiner_mode
+    developer_mode = cfg.developer_mode
     rune_live_preview = cfg.rune_live_preview
     streaming_dictation = bool(cfg.streaming_dictation)
     voice_editing = bool(cfg.voice_editing)

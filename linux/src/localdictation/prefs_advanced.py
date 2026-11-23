@@ -7,7 +7,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
 
-from .config import REFINER_MODES
+from .config import DEVELOPER_MODES, REFINER_MODES
 from .prefs_system_check import SystemCheck
 from .prefs_tab import LABS_INDENT, Tab, dropdown, fold, subheading, tip_label
 from .prefs_type_at_pause import TypeAtPause
@@ -140,6 +140,25 @@ class AdvancedTab(Tab):
         mode_label.set_mnemonic_widget(mode)
         grid.attach(mode_label, 0, row, 1, 1)
         grid.attach(mode, 1, row, 1, 1)
+        row += 1
+
+        dev = dropdown(Gtk.ComboBoxText())
+        for key, title in DEVELOPER_MODES.items():
+            dev.append(key, title)
+        dev.set_active_id(self.config.get("developer_mode", "auto"))
+        dev.set_tooltip_text(
+            "Turns dictated file names (\"main dot py\"), casing\n"
+            "(\"camel case get user id\"), symbols (\"backtick\", \"open paren\")\n"
+            "and common developer names into code.\n\n"
+            "In code apps: only when the focused window is a code editor or terminal.\n"
+            "Always: everywhere. Code dictation skips the prose refiner so it cannot\n"
+            "rewrite code.")
+        dev.connect("changed", lambda combo: self.update_config(
+            "developer_mode", combo.get_active_id()))
+        dev_label = Gtk.Label(label="Developer mode", xalign=0)
+        dev_label.set_mnemonic_widget(dev)
+        grid.attach(dev_label, 0, row, 1, 1)
+        grid.attach(dev, 1, row, 1, 1)
         row += 1
         return row
 

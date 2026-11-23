@@ -116,10 +116,22 @@ def prepare_text(raw: str, smart_quotes: bool, auto_period: bool, auto_space: bo
 
     Returns the final text string ready for injection.
     """
-    if app_kind:
+    from . import code_dictation
+    code_mode = (live.developer_mode == "on"
+                 or (live.developer_mode == "auto" and app_kind in ("code", "terminal")))
+    sentence_case = True
+    if code_mode:
+        # Code is not prose: keep the transcript exact (no refiner or AI
+        # cleanup), and let the spoken filenames, casing and symbols through
+        # below (code_dictation.py).
+        auto_period = smart_quotes = False
+        sentence_case = False
+        if ai:
+            ai = False
+            logger.info("Developer mode: code dictation keeps the transcript exact")
+    elif app_kind:
         # A shell or a compiler doesn't read “curly” quotes as quotes.
         auto_period = smart_quotes = False
-    sentence_case = True
     # Send the unmodified transcript to the model before command placeholders
     # and normalization. Reject empty or implausibly long/short generations.
     if ai and live.ai_corrections and live.ai_engine is not None and raw.strip():
@@ -140,6 +152,8 @@ def prepare_text(raw: str, smart_quotes: bool, auto_period: bool, auto_space: bo
     # Apply custom voice commands (phrase → replacement)
     # Quoted replacements come back as placeholder tokens in `protected`
     processed, protected = apply_custom_commands(raw)
+    if code_mode:
+        processed = code_dictation.apply(processed)
     # Your Words, first pass: before tidying, a hyphen inside a word can only
     # have come from the engine ("Tux-Talk"), so it may join here.
     if live.words:
@@ -176,6 +190,12 @@ def prepare_text(raw: str, smart_quotes: bool, auto_period: bool, auto_space: bo
     # Spoken numbers as digits. Before the quoted snippets come back, so a
     # literal snippet is typed exactly as written.
     text = numbers_to_digits(text)
+
+    # Code transforms again: normalization and cleanup may have changed the
+    # words around a filename or identifier. Quoted snippets are still
+    # placeholders, so their literal text is never touched.
+    if code_mode:
+        text = code_dictation.apply(text)
 
     # Restore quoted (literal) custom command replacements before any further
     # processing so that auto-period/space checks see the real final text.
