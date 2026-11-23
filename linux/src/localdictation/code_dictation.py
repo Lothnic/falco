@@ -163,6 +163,25 @@ def _tidy_symbols(text):
     return re.sub(r"`[ \t]*(.+?)[ \t]*`", lambda m: f"`{m.group(1)}`", text)
 
 
+def has_code(text):
+    """True when *text* has a spoken filename, path, casing command or symbol.
+
+    Used to decide whether the prose refiner may run: plain prose in a code
+    app still gets cleaned up, while a transcript with code in it is kept
+    exact."""
+    if not text:
+        return False
+    if _FILENAME.search(text) or _CASING.search(text) or _SYMBOL_RE.search(text):
+        return True
+    for match in _PATH.finditer(text):
+        value = match.group(0)
+        folded = value.casefold()
+        if ("." in value or folded.count(" slash ") >= 2
+                or folded.count(" backslash ") >= 2):
+            return True
+    return False
+
+
 def apply(text):
     """*text* with spoken file names, casing, symbols and dev names as code."""
     if not text:

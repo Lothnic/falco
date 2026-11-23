@@ -119,11 +119,13 @@ def prepare_text(raw: str, smart_quotes: bool, auto_period: bool, auto_space: bo
     from . import code_dictation
     code_mode = (live.developer_mode == "on"
                  or (live.developer_mode == "auto" and app_kind in ("code", "terminal")))
+    has_code = code_mode and code_dictation.has_code(raw)
     sentence_case = True
-    if code_mode:
+    if has_code:
         # Code is not prose: keep the transcript exact (no refiner or AI
         # cleanup), and let the spoken filenames, casing and symbols through
-        # below (code_dictation.py).
+        # below (code_dictation.py). Plain prose in the same app still takes
+        # the normal path, so its fillers and punctuation are cleaned up.
         auto_period = smart_quotes = False
         sentence_case = False
         if ai:

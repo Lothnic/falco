@@ -45,6 +45,26 @@ def test_ordinary_prose_is_not_rewritten():
     assert code_dictation.apply(text) == text
 
 
+def test_has_code_sees_spoken_code_but_not_prose():
+    assert code_dictation.has_code("open main dot py")
+    assert code_dictation.has_code("camel case get user id")
+    assert code_dictation.has_code("use backtick npm run build backtick")
+    assert code_dictation.has_code("src slash components slash button dot tsx")
+    assert not code_dictation.has_code("I pushed it to github")
+    assert not code_dictation.has_code("this slash that")
+    assert not code_dictation.has_code("um, hello there")
+
+
+def test_developer_mode_leaves_prose_formatting(monkeypatch):
+    from localdictation import dictation_text
+    from localdictation import live_settings as live
+    monkeypatch.setattr(live, "developer_mode", "on")
+    monkeypatch.setattr(live, "ai_corrections", False)
+    out = dictation_text.prepare_text("hello there", True, True, True)
+    assert out.startswith("Hello")
+    assert out.rstrip().endswith(".")
+
+
 def test_prepare_text_applies_code_mode(monkeypatch):
     from localdictation import dictation_text
     from localdictation import live_settings as live
