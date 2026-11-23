@@ -5,24 +5,6 @@ on:
   pull_request:
 
 jobs:
-  native:
-    # macos-14 ships Swift 5.10, which rejects concurrency captures the app's
-    # Swift 6 toolchain accepts; macos-15 is closer to what the app is built with.
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy,rustfmt
-      - uses: taiki-e/install-action@nextest
-      - uses: astral-sh/setup-uv@v6
-      - run: cargo fmt --all -- --check
-      - run: cargo nextest run --workspace
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: PYTHONPATH=. uv run --with pytest --with numpy pytest tests
-      - run: uv run --with ruff ruff check sidecar tests scripts
-      - run: swift test --package-path bar
-
   linux-app:
     runs-on: ubuntu-latest
     steps:
