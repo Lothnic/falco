@@ -94,9 +94,14 @@ show an overlay, the existing GTK recording indicator remains available.
 
 To show provisional words while recording, enable **Show a live transcript
 in Rune** under **Preferences → Audio → Customize**. This setting is off by
-default. It uses Parakeet on the CPU and applies to dictations inserted at
-release. The overlay keeps a short draft in memory for the current recording.
-Falco runs the usual full transcription and optional refinement at release.
+default. It uses Parakeet on the CPU and works alongside Type at pause as
+well as with dictations inserted at release. The overlay keeps a short draft
+in memory for the current recording. Falco runs the usual full transcription
+and optional refinement at release.
+
+The installer keeps one copy of Rune under `~/.local/share/falco-app/rune`
+and links each release to it, so an update does not lose the dashboard or
+overlay. With no Rune binaries, the launcher uses the GTK tray.
 
 Search your session's dictations in the Rune dashboard's **Recent** tab.
 

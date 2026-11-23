@@ -101,10 +101,28 @@ else
 fi
 
 mkdir -p -- "$release_dir/bin"
+# Rune (the dashboard and overlay) is not rebuilt on every update: keep one
+# copy under install_base/rune and link each release to it. A build from this
+# source tree, an earlier install's copy, or the old Phonon Linux prototype's
+# binaries all work; with none, the GTK tray is used.
+shared_rune="$install_base/rune"
 for binary in phonon-overlay phonon-window; do
-    if [[ -x "$source_dir/rune-overlay/target/release/$binary" ]]; then
-        install -m 755 "$source_dir/rune-overlay/target/release/$binary" "$release_dir/bin/$binary"
+    source_bin=""
+    for candidate in \
+        "$source_dir/rune-overlay/target/release/$binary" \
+        "$shared_rune/$binary" \
+        "$HOME/.local/share/PhononLinux/rune/$binary"; do
+        if [[ -x "$candidate" ]]; then
+            source_bin="$candidate"
+            break
+        fi
+    done
+    [[ -n "$source_bin" ]] || continue
+    mkdir -p -- "$shared_rune"
+    if [[ "$source_bin" != "$shared_rune/$binary" ]]; then
+        install -m 755 "$source_bin" "$shared_rune/$binary"
     fi
+    ln -sfn -- "$shared_rune/$binary" "$release_dir/bin/$binary"
 done
 cat > "$release_dir/run.sh" <<'RUNNER'
 #!/usr/bin/env bash

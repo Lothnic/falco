@@ -532,7 +532,7 @@ def start_recording(beeps_on: bool, notify_on: bool, input_device_idx,
             generation = indicator.show_at_position()
             indicator.start_recording()
             if (generation is not None and live.rune_live_preview and not rec.edit_mode
-                    and not rec.message.dictation_check and live.chunk_pause_seconds == 0
+                    and not rec.message.dictation_check
                     and engine.can_preview() and not focused_window.is_password()):
                 rec.preview_generation = generation
         except Exception as e:
