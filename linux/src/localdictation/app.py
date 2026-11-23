@@ -163,6 +163,8 @@ def main():
     """The dictation service: load the settings, start GTK (the stand-in
     D-Bus service and the recording indicator) and the speech model, then
     run the input loop for the life of the process."""
+    from . import legacy_migration
+    legacy_migration.migrate()
     _dbus_main_loop_first()     # before anything can make the shared bus
     cfg = _load_settings()
     input_device_idx = recording.pick_input_device(cfg.mic)

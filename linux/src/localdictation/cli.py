@@ -198,6 +198,8 @@ def _output_path(output, source, number, count, srt):
 def main(argv=None):
     """`falco`: the console script. Transcribe and control run here; anything
     else is the tray's, which is handed the same arguments."""
+    from .legacy_migration import migrate
+    migrate()
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] == "transcribe":
         return transcribe_files(argv[1:])

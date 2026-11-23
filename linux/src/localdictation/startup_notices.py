@@ -56,12 +56,13 @@ def show_after_start():
 
 def _show_update_complete_once():
     """"Update Complete!", once, when the updater's marker says this start
-    is the first of a new version (update_install.check_just_updated)."""
-    from . import __version__, update_install
-    if not update_install.check_just_updated():
+    is the first of a new version (self_update, or the AppImage installer)."""
+    from . import __version__, self_update, update_install
+    just_updated = self_update.check_just_updated()
+    if just_updated is None and not update_install.check_just_updated():
         return
     show_message(None, Gtk.MessageType.INFO, "Update Complete!",
-                 f"TuxTalk has been updated to <b>v{__version__}</b>\n\n"
+                 f"Falco has been updated to <b>v{__version__}</b>\n\n"
                  "The update was installed automatically and "
                  "Falco has restarted with the new version.",
                  keep_above=True, markup=True)

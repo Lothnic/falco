@@ -37,6 +37,16 @@ Rerun the installer to upgrade, with `--with-rune` if you use the dashboard
 and overlay. The existing launcher stays active until the new release is
 ready. Failed installs can be retried with the same command.
 
+Once a day, at startup, Falco also checks GitHub for a newer release and
+installs it by itself, then restarts. Your settings and downloaded models
+live outside the release folder, so they are kept, and first-run setup is
+not shown again. Install **Falco 2.1.0 or newer** to get this; an older
+copy has to be upgraded once by running the installer.
+
+If an older Phonon Linux prototype is installed, its settings and models
+are carried over the first time Falco starts, so the upgrade does not ask
+you to set everything up again.
+
 ### A .deb, for package-managed systems
 
 `packaging/build-deb.sh` builds a `.deb` that installs under `/usr` and is

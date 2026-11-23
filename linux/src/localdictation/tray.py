@@ -530,7 +530,8 @@ class DictationTray(ServiceLifecycle, Presets):
 
     def check_for_updates_clicked(self, _):
         """Check for Updates in the menu (update_ui.check_from_menu)."""
-        logger.info("Upstream updates are disabled in the Phonon Linux prototype")
+        update_ui.check_from_menu(self._show_update_result_dialog,
+                                  lambda: self._quitting)
 
     def _show_update_result_dialog(self, result):
         """What an update check found, with Download & Install where this
@@ -543,6 +544,10 @@ class DictationTray(ServiceLifecycle, Presets):
         it. Nothing once Quit has begun, and nothing installed if Quit began
         during the download; an install under way finishes (_install_not_cut_off)."""
         if self._quitting:
+            return
+        from . import self_update
+        if self_update.is_managed_install():
+            self_update.run_update_ui(None, release, self.restart_app)
             return
         update_ui.run_appimage_update(release, self.restart_app,
                                       quitting=lambda: self._quitting,
@@ -576,6 +581,8 @@ def main():
     """The tray process: what comes before the tray (the command line, the
     single-instance lock, an old install adopted), the tray, then first-run
     setup or the dictation service, and GTK's main loop."""
+    from . import legacy_migration
+    legacy_migration.migrate()
     from . import desktop_identity
     desktop_identity.apply()        # TuxTalk's icon on its windows, not KDE's generic one
     ui_style.prepare_windows()   # emoji that show, buttons clear of panels and docks
@@ -786,8 +793,9 @@ def _start_normally(tray, command, open_window):
     if open_window:
         # Started by --open (a launcher shortcut) with nothing running.
         GLib.timeout_add(1500, tray.open_window, open_window)
-    # Check for updates after a delay (don't interfere with startup)
-    # Upstream TuxTalk updates do not apply to this fork.
+    # Check for a new Falco after startup, once a day; it installs and restarts.
+    from . import self_update
+    self_update.auto_update(tray)
 
 
 if __name__ == "__main__":

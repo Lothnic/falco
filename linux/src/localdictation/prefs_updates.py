@@ -52,6 +52,9 @@ def _separator():
 def how_it_updates_text(install_type, owner=installation.system_package):
     """One line on how an install of this type updates. *owner* names the
     package a system install belongs to (the AUR's, on Arch), if one does."""
+    from . import self_update
+    if self_update.is_managed_install():
+        return "Updates install and Falco restarts by itself."
     package = ("Check for Updates installs the new .deb or .rpm through your package "
                "manager, with your password.")
     if install_type == "system":
@@ -539,6 +542,7 @@ class UpdatesTab(Tab):
         if has_update:
             method = guidance["update_method"]
             show_download = (
+                method == "falco_install" or
                 (method == "appimage_swap" and release.get("appimage_url")) or
                 (method == "pkexec_package" and
                  update_install.get_package_asset(release, install_type)[0]))
@@ -579,6 +583,12 @@ class UpdatesTab(Tab):
             return
         install_type = installation.get_install_type()
         method = update_ui.get_update_guidance(install_type, "")["update_method"]
+        if method == "falco_install":
+            from . import self_update
+            self_update.run_update_ui(self.window, self._current_release,
+                                      self._restart_after_package_update,
+                                      failed=self._show_update_failed)
+            return
         if method == "manual":
             update_checker.open_release_page(self._current_release.get("html_url", ""))
             return

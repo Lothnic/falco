@@ -29,12 +29,20 @@ def get_update_guidance(install_type: str, latest_version: str, *,
     """How to update a given install type. Returns a dict with:
       update_method: 'appimage_swap' (download+swap the AppImage in place),
                      'pkexec_package' (download the .rpm/.deb, install as root
-                     via a PolicyKit password prompt), or 'manual' (show the
-                     command; the app can't do it safely).
-      can_auto_update: True for appimage_swap and pkexec_package.
+                     via a PolicyKit password prompt), 'falco_install'
+                     (install.sh's per-user layout: download the release and
+                     run its installer), or 'manual' (show the command; the
+                     app can't do it safely).
+      can_auto_update: True for appimage_swap, pkexec_package, falco_install.
       message: user-facing text. command: copy-paste command for manual.
     """
     v = latest_version
+    from . import self_update
+    if self_update.is_managed_install():
+        return {"update_method": "falco_install", "can_auto_update": True,
+                "message": (f"Falco {v} is available. Falco can download and install "
+                            f"it, then restart."),
+                "command": None}
     aur_package = owner() if install_type == "system" else None
     if install_type == "appimage":
         return {"update_method": "appimage_swap", "can_auto_update": True,
@@ -213,7 +221,7 @@ def show_update_result(result, install_appimage, install_package):
     installed from Preferences → Updates & Backup instead."""
     if not result.get("update_available", False):
         show_message(None, Gtk.MessageType.INFO, "You're Up to Date!",
-                     f"<b>TuxTalk {result.get('current_version', 'unknown')}</b> is the "
+                     f"<b>Falco {result.get('current_version', 'unknown')}</b> is the "
                      "latest version.", keep_above=True, markup=True, wait=False)
         return
     release = result.get("release", {})
@@ -271,7 +279,7 @@ def _update_heading(content, current, latest):
     header.set_halign(Gtk.Align.START)
     content.pack_start(header, False, False, 0)
     version_label = Gtk.Label()
-    version_label.set_markup(f"<b>TuxTalk:</b> {current} → <b>{latest}</b>")
+    version_label.set_markup(f"<b>Falco:</b> {current} → <b>{latest}</b>")
     version_label.set_halign(Gtk.Align.START)
     content.pack_start(version_label, False, False, 5)
 
@@ -303,7 +311,8 @@ def _update_buttons(dialog, method, release):
     dialog.add_button("Close", Gtk.ResponseType.CLOSE)
     view_btn = (dialog.add_button("View on GitHub", Gtk.ResponseType.ACCEPT)
                 if release.get("html_url") else None)
-    if method == "appimage_swap" and release.get("appimage_url"):
+    if (method == "falco_install"
+            or (method == "appimage_swap" and release.get("appimage_url"))):
         suggested = dialog.add_button("Download & Install", Gtk.ResponseType.YES)
     elif method == "pkexec_package":
         suggested = dialog.add_button("Download & Install", Gtk.ResponseType.APPLY)

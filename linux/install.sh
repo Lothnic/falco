@@ -110,7 +110,6 @@ cat > "$release_dir/run.sh" <<'RUNNER'
 #!/usr/bin/env bash
 set -e
 release_dir="$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")"
-export DEV_MODE=1
 if [[ -x "$release_dir/bin/phonon-overlay" ]]; then
     export PHONON_RUNE_OVERLAY="${PHONON_RUNE_OVERLAY:-$release_dir/bin/phonon-overlay}"
 fi

@@ -24,10 +24,10 @@ from .extension_helper import EXTENSION_UUID
 logger = logging.getLogger(__name__)
 
 # GitHub API endpoint for latest release
-GITHUB_API_URL = "https://api.github.com/repos/ronb1964/TuxTalk/releases/latest"
+GITHUB_API_URL = "https://api.github.com/repos/Lothnic/falco/releases/latest"
 
 # GitHub raw content URL for fetching extension metadata from a specific tag
-GITHUB_RAW_URL = "https://raw.githubusercontent.com/ronb1964/TuxTalk"
+GITHUB_RAW_URL = "https://raw.githubusercontent.com/Lothnic/falco"
 
 
 def get_current_version() -> str:
@@ -141,7 +141,7 @@ def fetch_release_by_tag(tag: str) -> Optional[dict]:
     if not tag.startswith("v"):
         tag = f"v{tag}"
 
-    url = f"https://api.github.com/repos/ronb1964/TuxTalk/releases/tags/{tag}"
+    url = f"https://api.github.com/repos/Lothnic/falco/releases/tags/{tag}"
 
     try:
         request = urllib.request.Request(
@@ -172,7 +172,7 @@ def fetch_release_by_tag(tag: str) -> Optional[dict]:
 
 def get_releases_url() -> str:
     """Get the URL to the GitHub releases page."""
-    return "https://github.com/ronb1964/TuxTalk/releases"
+    return "https://github.com/Lothnic/falco/releases"
 
 
 # Why this thread's last fetch_latest_release() failed: ("network" | "http" |
@@ -288,6 +288,10 @@ def check_for_updates() -> dict:
             - extension_update: True if extension update is available
             - release: Full release info dict (if successful)
     """
+    from . import self_update
+    if self_update.is_managed_install():
+        return self_update.check()
+
     result = {
         "success": False,
         "error": None,
