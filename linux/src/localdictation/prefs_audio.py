@@ -213,10 +213,22 @@ class AudioTab(Tab):
         combo.set_active_id(sound_choice(self.config))
         combo.connect("changed", self._on_sound_changed)
         sound_label.set_mnemonic_widget(combo)
+        self.resume_check = Gtk.CheckButton(label="Resume it after dictating")
+        self.resume_check.set_active(self.config.get("resume_media", True))
+        self.resume_check.set_tooltip_text(
+            "Start the players TuxTalk paused again when the dictation ends.\n"
+            "Off leaves them paused.")
+        self.resume_check.connect(
+            "toggled", lambda b: self.update_config("resume_media", b.get_active()))
+        _label, pause, _duck = SOUND_CHOICES[sound_choice(self.config)]
+        self.resume_check.set_sensitive(pause)
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         row.pack_start(sound_label, False, False, 0)
         row.pack_start(combo, False, False, 0)
-        return row
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        outer.pack_start(row, False, False, 0)
+        outer.pack_start(self.resume_check, False, False, 0)
+        return outer
 
     def _on_sound_changed(self, combo):
         """Save the two settings behind the Other sound choice."""
@@ -225,6 +237,8 @@ class AudioTab(Tab):
             _label, pause, duck = SOUND_CHOICES[choice]
             self.update_config("pause_media", pause)
             self.update_config("duck_audio", duck)
+            if hasattr(self, "resume_check"):
+                self.resume_check.set_sensitive(pause)
 
     def _indicator_row(self):
         """Show recording indicator, and Customize… for how it looks, in a

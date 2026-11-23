@@ -31,6 +31,11 @@ restore_clipboard = False
 # start_recording never pause anyone's music; refreshed with the live settings.
 pause_media = False
 
+# Start the players pause_media paused again when the dictation ends (config
+# resume_media, media_pause.py). On until the service reads config, like
+# pause_media, so a pause is always undone in tests.
+resume_media = True
+
 # Turn other apps' sound down while recording (config duck_audio, audio_duck.py).
 # Off until the service reads config, for the same reason as pause_media.
 duck_audio = False
@@ -105,6 +110,7 @@ def apply(cfg):
     global auto_languages, press_enter_after
     global chunk_pause_seconds, chunk_cfg, chunk_context_marks
     global log_transcripts, usage_stats, restore_clipboard, pause_media, duck_audio
+    global resume_media
     global paste_last_hotkey
     global refiner_mode, rune_live_preview
     global streaming_dictation
@@ -112,6 +118,7 @@ def apply(cfg):
     usage_stats = cfg.usage_stats
     restore_clipboard = cfg.restore_clipboard
     pause_media = cfg.pause_media
+    resume_media = cfg.resume_media
     duck_audio = cfg.duck_audio
     paste_last_hotkey = cfg.paste_last_hotkey
     auto_stop_seconds = float(cfg.auto_stop_seconds) if cfg.auto_stop_silence else 0.0

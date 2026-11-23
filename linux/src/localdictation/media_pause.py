@@ -21,7 +21,9 @@ they were asked, and a command can tell which players this recording paused.
 """
 import queue
 import threading
+import time
 
+from . import live_settings as live
 from .logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -93,6 +95,10 @@ def status_of(bus, name):
 # How long exit waits for the worker's last resume: a pause already under
 # way finishes first, and each call may take CALL_TIMEOUT_MS.
 EXIT_WAIT_S = 3.0
+
+# After Play, time to let a player report Playing before toggling it: some
+# browsers accept Play and stay Paused when the page's media session stopped.
+RESUME_CHECK_S = 0.3
 
 # How long a music voice command waits for the worker: a pause queued before
 # it finishes first, and each call may take CALL_TIMEOUT_MS.
@@ -228,11 +234,36 @@ class MediaPauser:
 
     def _resume_now(self):
         names, self._paused = self._paused, []
+        if not names:
+            return
+        if not live.resume_media:
+            logger.info("Media: resume is off; leaving the paused players alone")
+            return
+        played = []
         for name in names:
             if status_of(self._bus, name) != "Paused":
                 continue
             try:
                 self._bus.call(name, "Play")
-                logger.info(f"Resumed {name[len(MPRIS_PREFIX):]}")
+                played.append(name)
             except Exception as e:
                 logger.info(f"Media pause: could not resume {name}: {e}")
+        if not played:
+            return
+        # Play is not always enough: Firefox, for one, keeps reporting Paused
+        # when the page's media session stopped while it was paused. Give the
+        # players a moment, then toggle the ones that did not start.
+        time.sleep(RESUME_CHECK_S)
+        for name in played:
+            short = name[len(MPRIS_PREFIX):]
+            status = status_of(self._bus, name)
+            if status == "Playing":
+                logger.info(f"Resumed {short}")
+            elif status == "Paused":
+                try:
+                    self._bus.call(name, "PlayPause")
+                    logger.info(f"Resumed {short} with PlayPause")
+                except Exception as e:
+                    logger.info(f"Media pause: could not resume {name}: {e}")
+            else:
+                logger.info(f"Media pause: {short} is {status or 'gone'} after resuming")

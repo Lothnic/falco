@@ -133,6 +133,14 @@ each pause, and at release the answer is reused when it was made for exactly
 the finished transcript, character for character. Otherwise the release refines
 as usual, so this can only save time, never change the words.
 
+## Background music
+
+Under **Preferences → Audio → Other sound while you dictate**, **Pause music
+and videos** stops the players that are playing so the microphone hears only
+you. **Resume it after dictating** starts them again when the dictation ends;
+turn it off to leave them paused. If a browser accepts the play request but
+stays paused, Falco checks once and toggles it to recover.
+
 ## The command line
 
 `falco` is more than the launcher. `falco transcribe` turns a file into text
