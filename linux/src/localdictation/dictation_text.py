@@ -143,6 +143,11 @@ def prepare_text(raw: str, smart_quotes: bool, auto_period: bool, auto_space: bo
         else:
             candidate = refine(raw, refiner_mode)
         if candidate:
+            from . import learned_words
+            for word in learned_words.observe(raw, candidate):
+                known = {word.casefold() for word in live.words}
+                if word.casefold() not in known:
+                    live.words.append(word)
             raw = restore_opening_word(raw, candidate)
             if refiner_mode == "casual":
                 auto_period = False

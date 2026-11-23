@@ -85,6 +85,8 @@ ai_corrections = False
 refiner_mode = "minimal"
 # Spoken file names, casing and symbols become code (code_dictation.py).
 developer_mode = "auto"
+# Add the names the refiner's spelling/capital fixes reveal (learned_words.py).
+learn_words = True
 rune_live_preview = False
 # Hear a dictation in phrases while the speaker talks (streaming.py), so the
 # release only transcribes the last one.
@@ -116,6 +118,7 @@ def apply(cfg):
     global paste_last_hotkey
     global refiner_mode, rune_live_preview
     global developer_mode
+    global learn_words
     global streaming_dictation
     log_transcripts = cfg.log_transcripts
     usage_stats = cfg.usage_stats
@@ -154,6 +157,7 @@ def apply(cfg):
     ai_corrections = bool(cfg.ai_corrections)
     refiner_mode = cfg.refiner_mode
     developer_mode = cfg.developer_mode
+    learn_words = bool(cfg.learn_words)
     rune_live_preview = cfg.rune_live_preview
     streaming_dictation = bool(cfg.streaming_dictation)
     voice_editing = bool(cfg.voice_editing)
@@ -254,29 +258,34 @@ def reload_commands() -> None:
 
 
 def words_file_changed() -> bool:
-    """Whether custom_words.txt's mtime has moved since the last check.
-    Same contract as commands_file_changed()."""
+    """Whether custom_words.txt or the learned words changed since the last
+    check. Same contract as commands_file_changed()."""
     global _last_words_mtime
-    from . import custom_words
-    try:
-        mtime = os.path.getmtime(custom_words.path())
-    except OSError:
+    from . import custom_words, learned_words
+
+    def mtime(path):
+        try:
+            return os.path.getmtime(path)
+        except OSError:
+            return 0.0
+
+    mtimes = (mtime(custom_words.path()), mtime(learned_words.path()))
+    if mtimes == _last_words_mtime:
         return False
-    if mtime == _last_words_mtime:
-        return False
-    _last_words_mtime = mtime
+    _last_words_mtime = mtimes
     return True
 
 
 def reload_words() -> None:
-    """Re-read custom_words.txt into the running service. A file that can't
-    be read keeps the words already in force, like reload_commands."""
+    """Re-read custom_words.txt and the learned words into the running
+    service. A file that can't be read keeps the words already in force, like
+    reload_commands."""
     global words
-    from . import custom_words
+    from . import custom_words, learned_words
     try:
         fresh = custom_words.load(strict=True)
     except (OSError, UnicodeDecodeError) as e:
         logger.warning(f"Could not reload your words, keeping the current ones: {e}")
         return
-    words = fresh
+    words = learned_words.merge(fresh)
     logger.info(f"Reloaded your words ({len(words)})")

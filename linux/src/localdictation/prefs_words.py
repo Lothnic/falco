@@ -88,6 +88,7 @@ class WordsTab(Tab):
             logger.warning(f"Word fixes not moved under Your Words: {e}")
 
         self._build_words(vbox)
+        self._build_learned(vbox)
         spacer = Gtk.Box()
         spacer.set_size_request(-1, 6)
         vbox.pack_start(spacer, False, False, 0)
@@ -137,6 +138,54 @@ class WordsTab(Tab):
                  ("Remove", "Remove the selected word", self._on_remove_word, False),
                  ("Fix a Word...", "Teach Falco a word from one of your recent dictations",
                   self._on_fix_word, True))
+
+    def _build_learned(self, vbox):
+        """The dictionary Falco keeps itself: names the refiner fixed twice."""
+        _section(vbox, "Learned automatically",
+                 "Names the refiner fixed in a dictation. Only spelling and capitals "
+                 "are learned, never a rewrite.")
+        check = Gtk.CheckButton(label="Learn names from the refiner")
+        check.set_active(bool(self.config.get("learn_words", True)))
+        check.set_tooltip_text(
+            "When the refiner fixes only the spelling or capitals of a name in the "
+            "middle of a dictation (github → GitHub, tux talk → TuxTalk), Falco adds "
+            "it to Your Words after seeing the fix twice.\n\n"
+            "Rewrites (gonna → going to) and a sentence's first word are not learned.")
+        check.connect("toggled", lambda b: self.update_config(
+            "learn_words", b.get_active()))
+        vbox.pack_start(check, False, False, 0)
+
+        self.learned_label = Gtk.Label(xalign=0)
+        self.learned_label.set_line_wrap(True)
+        self.learned_label.set_max_width_chars(90)
+        vbox.pack_start(self.learned_label, False, False, 0)
+        self.learned_clear = Gtk.Button(label="Clear learned words")
+        self.learned_clear.connect("clicked", self._on_clear_learned)
+        vbox.pack_start(self.learned_clear, False, False, 0)
+        self._show_learned()
+
+    def _show_learned(self):
+        """The learned words and their counts, or "None yet."."""
+        from . import learned_words
+        entries = learned_words.all_entries()
+        if entries:
+            self.learned_label.set_text(
+                ", ".join(f"{word} ({count})" for word, count in entries))
+        else:
+            self.learned_label.set_text("None yet.")
+        self.learned_clear.set_sensitive(bool(entries))
+
+    def _on_clear_learned(self, _button):
+        """Forget the learned words; the user's own list is untouched."""
+        from . import learned_words
+        if show_message(
+                self.window, Gtk.MessageType.QUESTION, "Clear learned words?",
+                "Falco will forget every word it learned from the refiner. "
+                "The words in Your Words above are not touched.",
+                buttons=Gtk.ButtonsType.OK_CANCEL) != Gtk.ResponseType.OK:
+            return
+        learned_words.clear()
+        self._show_learned()
 
     def _build_snippets(self, vbox):
         """The snippets: edited in place, saved with Apply or OK."""

@@ -285,6 +285,8 @@ class Settings:
     refiner_mode: str = "minimal"
     # spoken file names, casing and symbols become code (code_dictation.py)
     developer_mode: str = "auto"
+    # add names the refiner's spelling/capital fixes reveal (learned_words.py)
+    learn_words: bool = True
     # Shift + dictation key rewrites the selected text with the same AI model
     voice_editing: bool = False
     # toggle recordings stop by themselves when you stop talking (silence.py)
@@ -966,6 +968,7 @@ LIVE_APPLIED_KEYS = {
     "ai_corrections",
     "refiner_mode",
     "developer_mode",
+    "learn_words",
     "voice_editing",
     # Hands-free auto-stop; read when each toggle recording starts.
     "auto_stop_silence",

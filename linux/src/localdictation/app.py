@@ -193,7 +193,7 @@ def _load_settings():
     """Take the single-instance lock and the signals, then load the settings
     and everything they switch on: the virtual keyboard, the live options,
     custom commands and Your Words. Returns the settings."""
-    from . import custom_words, desktop_identity, ui_style
+    from . import custom_words, desktop_identity, learned_words, ui_style
     desktop_identity.apply()        # TuxTalk's icon on its windows, not KDE's generic one
     ui_style.prepare_windows()   # emoji that show, buttons clear of panels and docks
     # The signals first: a restart's tray signals this service by its PID
@@ -226,7 +226,7 @@ def _load_settings():
     live.commands = load_custom_commands()
     if live.commands:
         logger.info(f"Loaded {len(live.commands)} custom voice command(s)")
-    live.words = custom_words.load()
+    live.words = learned_words.merge(custom_words.load())
     if live.words:
         logger.info(f"Loaded your words ({len(live.words)})")
     return cfg

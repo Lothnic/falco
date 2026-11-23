@@ -161,6 +161,19 @@ Code dictation keeps the transcript exact: the prose refiner and AI cleanup
 are skipped so they cannot rewrite code. A word the model still mishears can
 be taught in **Preferences → Words**.
 
+## A dictionary that learns
+
+**Preferences → Words → Learned automatically** shows the names Falco taught
+itself. With **Learn names from the refiner** on, a word the refiner fixes
+only in spelling or capitals, in the middle of a dictation ("github" →
+"GitHub", "tux talk" → "TuxTalk"), is counted; on the second sighting it joins
+Your Words, so the engine is steered towards it and the spelling pass gets it
+right before the refiner is asked.
+
+Rewrites ("gonna" → "going to") and a sentence's first capital are ignored,
+so the list gains proper nouns, not grammar. **Clear learned words** forgets
+them; Your Words itself is never changed.
+
 ## The command line
 
 `falco` is more than the launcher. `falco transcribe` turns a file into text

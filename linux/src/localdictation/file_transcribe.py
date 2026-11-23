@@ -171,8 +171,8 @@ class FileEngine:
 
     def reload_words(self):
         """Your Words as they are now: they can change between two files."""
-        from . import custom_words
-        self.words = custom_words.load()
+        from . import custom_words, learned_words
+        self.words = learned_words.merge(custom_words.load())
 
     def close(self):
         close = getattr(self.model, "close", None)
@@ -194,7 +194,7 @@ def load_engine(cfg):
     """The model *cfg* dictates with, loaded for files. Graphics first when
     that's the device, the processor when the graphics chip can't be used.
     Raises NotDownloaded when the model isn't on this computer."""
-    from . import custom_words, language_limit, whisper_vulkan
+    from . import custom_words, language_limit, learned_words, whisper_vulkan
     from .model_helper import is_model_cached_fast, whisper_model
     from .parakeet_engine import is_parakeet, load_parakeet_model
     from .recommend import model_title
@@ -204,7 +204,7 @@ def load_engine(cfg):
     title = model_title(name)
     language, limit_to = language_limit.language_and_limit(
         cfg.language, language_limit.parse(getattr(cfg, "auto_languages", "")))
-    words = custom_words.load()
+    words = learned_words.merge(custom_words.load())
     common = dict(language=language, limit_to=limit_to, words=words)
 
     gpu_failed = False

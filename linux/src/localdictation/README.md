@@ -9,8 +9,9 @@ is for.
   where there is no tray).
 - **Dictation service:** `app.py`, with `pipeline.py` (audio to text in the
   window), `recording.py`, `dictation_worker.py`, `service_tick.py` and
-  `service_launcher.py` (the one place that starts and stops it), and
-  `code_dictation.py` (developer mode's spoken file names, casing and symbols).
+  `service_launcher.py` (the one place that starts and stops it),
+  `code_dictation.py` (developer mode's spoken file names, casing and symbols)
+  and `learned_words.py` (names learned from the refiner's spelling fixes).
 - **Preferences:** `prefs.py`, with one `prefs_*.py` file per tab or part
   (`prefs_general.py`, `prefs_speech.py`, `prefs_audio.py`, `prefs_advanced.py`,
   `prefs_words.py`, `prefs_updates.py` and the rest); `prefs_tab.py` holds what
