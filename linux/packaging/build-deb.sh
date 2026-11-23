@@ -126,7 +126,7 @@ Section: utils
 Priority: optional
 Architecture: $architecture
 Installed-Size: $installed_size
-Depends: python3 (>= 3.10), python3-venv, python3-gi, python3-gi-cairo, python3-dbus, python3-evdev, python3-sounddevice, python3-toml, python3-numpy, gir1.2-gtk-3.0, gir1.2-ayatanaappindicator3-0.1, libportaudio2, wl-clipboard
+Depends: python3 (>= 3.10), python3-venv, python3-gi, python3-gi-cairo, python3-dbus, gir1.2-gtk-3.0, gir1.2-ayatanaappindicator3-0.1, libportaudio2, wl-clipboard
 Recommends: xdotool, xclip
 Maintainer: Falco contributors
 Description: Local voice dictation for Linux

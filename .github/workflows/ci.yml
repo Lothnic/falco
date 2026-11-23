@@ -74,8 +74,10 @@ jobs:
           test -x /usr/bin/falco
           # The installed interpreter must find the app and every system module
           # the package declares. A missing dependency fails here, not for a
-          # user launching it from their menu.
-          /usr/lib/falco/.venv/bin/python -c 'import localdictation, gi, dbus, evdev, sounddevice, toml; print(localdictation.__version__)'
+          # user launching it from their menu. sounddevice is checked by spec,
+          # not imported: importing it initializes PortAudio, which needs a
+          # sound server this runner does not have.
+          /usr/lib/falco/.venv/bin/python -c 'import importlib.util, localdictation, gi, dbus, evdev, toml; assert importlib.util.find_spec("sounddevice"); print(localdictation.__version__)'
       - name: Remove the .deb
         run: sudo apt-get remove -y falco
 
