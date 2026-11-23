@@ -174,6 +174,24 @@ Rewrites ("gonna" → "going to") and a sentence's first capital are ignored,
 so the list gains proper nouns, not grammar. **Clear learned words** forgets
 them; Your Words itself is never changed.
 
+## Refiner models and Hindi
+
+**Preferences → Advanced → Refiner model** chooses which local model cleans up
+a transcript:
+
+- **Automatic** (default): Phonon 1.7B for English, Gemma 3 1B when the
+  dictation language is Hindi.
+- **Phonon English** (1.7B, 1.0 GB).
+- **Gemma 3 1B** or **Llama 3.2 1B** (both 0.8 GB, Hindi and other languages).
+
+Only one model runs at a time, and the 1B models use less memory than Phonon.
+Choosing a model downloads it; **Automatic** needs Gemma 3 1B downloaded once
+before Hindi dictation uses it.
+
+Hindi dictation also needs a **Whisper** speech model — Parakeet is English
+only. Set the language to Hindi in **Preferences → Speech**. The refiner keeps
+the transcript's language and script and never translates it.
+
 ## The command line
 
 `falco` is more than the launcher. `falco transcribe` turns a file into text

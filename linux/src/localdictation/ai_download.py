@@ -1,9 +1,11 @@
 """The local AI's files: llama.cpp's prebuilt llama-server (the Vulkan build,
 which also carries every CPU variant: it uses the graphics card when there
-is one and the processor otherwise) and the Qwen2.5-1.5B-Instruct model
-(Apache 2.0, Q4_K_M). What they are, where they live, and their downloads,
-made only when the user turns on a feature that needs them, so TuxTalk's
-package does not grow. ai_server runs them.
+is one and the processor otherwise) and the refiner model chosen for the
+dictation language. Phonon's 1.7B English refiner is the default; a 1B
+Gemma 3 (or Llama 3.2 1B) handles Hindi and other languages at a smaller
+footprint. What they are, where they live, and their downloads, made only
+when the user turns on a feature that needs them, so the package does not
+grow. ai_server runs them.
 """
 import os
 
@@ -20,9 +22,41 @@ LLAMA_URL = f"https://github.com/ggml-org/llama.cpp/releases/download/{LLAMA_TAG
 LLAMA_SHA256 = "85aa8b17a081b343a57398ca5fb112b6713a47114993a8b677c5aa1b2106d232"
 LLAMA_SIZE_MB = 30
 
-MODEL_REPO = "Infatoshi/phonon-refiner-1.7b"
-MODEL_FILE = "phonon-refiner-1.7b-Q4_K_S-e4.gguf"
-MODEL_SIZE_MB = 989
+# The refiner models. The 1B entries are smaller than Phonon's 1.7B and
+# support Hindi; "auto" picks by the dictation language.
+REFINER_MODELS = {
+    "phonon": {
+        "label": "Phonon English (1.7B)",
+        "repo": "Infatoshi/phonon-refiner-1.7b",
+        "file": "phonon-refiner-1.7b-Q4_K_S-e4.gguf",
+        "size_mb": 989,
+        "license": "LFM Open License",
+        "hindi": False,
+    },
+    "gemma-3-1b": {
+        "label": "Gemma 3 1B",
+        "repo": "unsloth/gemma-3-1b-it-GGUF",
+        "file": "gemma-3-1b-it-Q4_K_M.gguf",
+        "size_mb": 810,
+        "license": "Gemma Terms of Use",
+        "hindi": True,
+    },
+    "llama-3.2-1b": {
+        "label": "Llama 3.2 1B",
+        "repo": "unsloth/Llama-3.2-1B-Instruct-GGUF",
+        "file": "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+        "size_mb": 810,
+        "license": "Llama 3.2 Community License",
+        "hindi": True,
+    },
+}
+DEFAULT_MODEL = "phonon"
+HINDI_MODEL = "gemma-3-1b"
+
+# Kept for the code that names the default model (uninstall, Help).
+MODEL_REPO = REFINER_MODELS[DEFAULT_MODEL]["repo"]
+MODEL_FILE = REFINER_MODELS[DEFAULT_MODEL]["file"]
+MODEL_SIZE_MB = REFINER_MODELS[DEFAULT_MODEL]["size_mb"]
 
 
 def _size_text(mb):
@@ -35,6 +69,41 @@ MODEL_SIZE_TEXT = _size_text(MODEL_SIZE_MB)
 # What turning the AI on downloads, its engine included: the size every
 # window and Help give.
 DOWNLOAD_SIZE_TEXT = _size_text(MODEL_SIZE_MB + LLAMA_SIZE_MB)
+
+
+def _language_code(cfg):
+    try:
+        from .recommend import effective_language
+        code = str(effective_language(cfg))
+    except Exception:
+        code = getattr(cfg, "dictation_language", "") or ""
+    return code.casefold().split("-")[0].split("_")[0]
+
+
+def selected_model(cfg=None):
+    """The model to run: an explicit choice, or by the dictation language.
+
+    "auto" keeps Phonon for English and uses the 1B Hindi model when the
+    language is Hindi; the user can also name a model outright."""
+    if cfg is None:
+        from .config import load_config
+        cfg = load_config()
+    choice = getattr(cfg, "refiner_model", "auto")
+    if choice in REFINER_MODELS:
+        return choice
+    return HINDI_MODEL if _language_code(cfg) == "hi" else DEFAULT_MODEL
+
+
+def model_spec(model_id=None):
+    return REFINER_MODELS[model_id or selected_model()]
+
+
+def model_size_text(model_id=None):
+    return _size_text(model_spec(model_id)["size_mb"])
+
+
+def download_size_text(model_id=None):
+    return _size_text(model_spec(model_id)["size_mb"] + LLAMA_SIZE_MB)
 
 
 # The folder llama.cpp's archive unpacks to, in _engine_dir().
@@ -51,15 +120,16 @@ def server_binary():
     return os.path.join(_engine_dir(), _SERVER_FOLDER, "llama-server")
 
 
-def model_path():
-    """Local path of the downloaded model, or None."""
+def model_path(model_id=None):
+    """Local path of the selected model, or None."""
     from .download_utils import cached_hub_file
-    return cached_hub_file(MODEL_REPO, MODEL_FILE)
+    spec = model_spec(model_id)
+    return cached_hub_file(spec["repo"], spec["file"])
 
 
-def is_installed() -> bool:
-    """Engine and model are both downloaded. Cheap: file checks only."""
-    return os.access(server_binary(), os.X_OK) and model_path() is not None
+def is_installed(model_id=None) -> bool:
+    """Engine and the selected model are both downloaded. Cheap: file checks."""
+    return os.access(server_binary(), os.X_OK) and model_path(model_id) is not None
 
 
 def make_engine_download_func():
@@ -112,7 +182,8 @@ def make_engine_download_func():
     return download
 
 
-def make_model_download_func():
-    """DownloadTask function: fetch the AI model into the Hugging Face cache."""
+def make_model_download_func(model_id=None):
+    """DownloadTask function: fetch the selected model into the HF cache."""
     from .model_helper import make_model_download_func as _hf_download
-    return _hf_download("ai-cleanup", repo_id=MODEL_REPO, only_files=(MODEL_FILE,))
+    spec = model_spec(model_id)
+    return _hf_download("ai-cleanup", repo_id=spec["repo"], only_files=(spec["file"],))

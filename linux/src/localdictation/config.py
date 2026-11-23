@@ -102,6 +102,10 @@ DEVELOPER_MODES = {
     "on": "Always",
 }
 
+# The refiner model choices (ai_download.REFINER_MODELS has their labels and
+# downloads). "auto" keeps Phonon for English and uses a 1B model for Hindi.
+REFINER_MODEL_IDS = ("auto", "phonon", "gemma-3-1b", "llama-3.2-1b")
+
 # The dictation keys (hotkey, toggle_hotkey), by the name the settings save and
 # Preferences and Help show, with the key's evdev name. Many laptops and
 # compact keyboards send F1-F12 only with Fn held (Discussion #18), so three
@@ -283,6 +287,8 @@ class Settings:
     # fix "3, no wait, 4" with a local AI model (ai_download.py downloads it)
     ai_corrections: bool = True
     refiner_mode: str = "minimal"
+    # which model cleans up (ai_download.REFINER_MODELS); "auto" by language
+    refiner_model: str = "auto"
     # spoken file names, casing and symbols become code (code_dictation.py)
     developer_mode: str = "auto"
     # add names the refiner's spelling/capital fixes reveal (learned_words.py)
@@ -371,6 +377,9 @@ def _validation_problems(s: Settings) -> list[tuple[str, str]]:
     if s.refiner_mode.lower() not in REFINER_MODES:
         problems.append(("refiner_mode", "Invalid Phonon refiner writing mode"))
 
+    if s.refiner_model.lower() not in REFINER_MODEL_IDS:
+        problems.append(("refiner_model", "Invalid refiner model"))
+
     if s.developer_mode.lower() not in DEVELOPER_MODES:
         problems.append(("developer_mode", "Invalid developer mode"))
 
@@ -439,7 +448,7 @@ def validate_config(s: Settings) -> None:
 
 
 _CASE_FREE_CHOICES = ("device", "mode", "injection_mode", "indicator_position", "refiner_mode",
-                      "developer_mode", "indicator_size", "indicator_style",
+                      "refiner_model", "developer_mode", "indicator_size", "indicator_style",
                       "indicator_color_mode")
 
 

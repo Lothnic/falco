@@ -129,7 +129,8 @@ HF_REPOS = tuple(sorted({_hub_folder(repo) for repo in (
     *(model_helper.MODEL_REPOS.get(m, f"Systran/faster-whisper-{m}")
       for m in config.VALID_MODELS - {"large"} if not parakeet_engine.is_parakeet(m)),
     parakeet_engine.V3_REPO, whisper_vulkan.MODEL_REPO,
-    *whisper_vulkan.MODEL_REPOS.values(), ai_download.MODEL_REPO)}))
+    *whisper_vulkan.MODEL_REPOS.values(),
+    *[spec["repo"] for spec in ai_download.REFINER_MODELS.values()])}))
 
 # The runtime folder's files that hold dictated text, as glob patterns:
 # Recent Dictations, the temp file a save of it killed part-way leaves
@@ -735,11 +736,11 @@ def _shown(path, home):
 def _shared_what(plan):
     """What the shared cache holds of TuxTalk's, in words, and whether that's
     more than one thing."""
-    ai = _hub_folder(ai_download.MODEL_REPO)
+    ai = {_hub_folder(spec["repo"]) for spec in ai_download.REFINER_MODELS.values()}
     names = {path.name for path in plan.shared}
-    if names == {ai}:
-        return "the AI model", False
-    return ("speech models and the AI model" if ai in names else "speech models"), True
+    if names and names <= ai:
+        return ("the AI models" if len(names) > 1 else "the AI model"), len(names) > 1
+    return ("speech models and the AI models" if ai & names else "speech models"), True
 
 
 def shared_label(plan):

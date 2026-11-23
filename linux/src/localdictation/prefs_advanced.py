@@ -7,7 +7,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
 
-from .config import DEVELOPER_MODES, REFINER_MODES
+from .config import DEVELOPER_MODES, REFINER_MODEL_IDS, REFINER_MODES
 from .prefs_system_check import SystemCheck
 from .prefs_tab import LABS_INDENT, Tab, dropdown, fold, subheading, tip_label
 from .prefs_type_at_pause import TypeAtPause
@@ -115,8 +115,8 @@ class AdvancedTab(Tab):
         self.ai_corrections_check.set_active(
             bool(self.config.get("ai_corrections", False)) and ai_download.is_installed())
         self.ai_corrections_check.set_tooltip_text(
-            "Refines each full transcript locally using Phonon's LFM3 model. "
-            "The first use downloads the model and engine.")
+            "Refines each full transcript locally with the selected refiner model "
+            "(Phonon for English, Gemma 3 1B for Hindi). The first use downloads it.")
         self.ai_corrections_check.connect("toggled", self._on_ai_corrections_toggled)
         grid.attach(self.ai_corrections_check, 0, row, 2, 1)
         row += 1
@@ -140,6 +140,26 @@ class AdvancedTab(Tab):
         mode_label.set_mnemonic_widget(mode)
         grid.attach(mode_label, 0, row, 1, 1)
         grid.attach(mode, 1, row, 1, 1)
+        row += 1
+
+        model = dropdown(Gtk.ComboBoxText())
+        for key in REFINER_MODEL_IDS:
+            if key == "auto":
+                title = "Automatic (English: Phonon, Hindi: Gemma 3 1B)"
+            else:
+                title = (f'{ai_download.REFINER_MODELS[key]["label"]} '
+                         f'({ai_download.model_size_text(key)})')
+            model.append(key, title)
+        model.set_active_id(self.config.get("refiner_model", "auto"))
+        model.set_tooltip_text(
+            "Automatic uses Phonon for English and Gemma 3 1B when the dictation\n"
+            "language is Hindi. The 1B models are 0.8 GB, smaller than Phonon's 1.0 GB,\n"
+            "and only one runs at a time. Choose Gemma 3 1B once to download it.")
+        model.connect("changed", self._on_refiner_model_changed)
+        model_label = Gtk.Label(label="Refiner model", xalign=0)
+        model_label.set_mnemonic_widget(model)
+        grid.attach(model_label, 0, row, 1, 1)
+        grid.attach(model, 1, row, 1, 1)
         row += 1
 
         dev = dropdown(Gtk.ComboBoxText())
@@ -620,6 +640,56 @@ class AdvancedTab(Tab):
         self._toggle_ai_feature(check, "ai_corrections", self._on_ai_corrections_toggled,
                                 "Download the AI for self-corrections?")
 
+    def _on_refiner_model_changed(self, combo):
+        """Save the model choice, downloading the one it will run if needed."""
+        choice = combo.get_active_id()
+        if choice is None:
+            return
+        self.update_config("refiner_model", choice)
+        if not (self.config.get("ai_corrections", False)
+                or self.config.get("voice_editing", False)):
+            return
+        from types import SimpleNamespace
+        from localdictation import ai_download
+        cfg = SimpleNamespace(**{**self.config, "refiner_model": choice})
+        self._ensure_refiner_model(ai_download.selected_model(cfg))
+
+    def _ensure_refiner_model(self, model_id):
+        """Download the model (and engine) the chosen refiner needs."""
+        from localdictation import ai_download
+        if ai_download.is_installed(model_id):
+            return True
+        spec = ai_download.REFINER_MODELS[model_id]
+        need_engine = not os.access(ai_download.server_binary(), os.X_OK)
+        size = ai_download.model_size_text(model_id)
+        detail = f"{spec['label']} ({size})"
+        if need_engine:
+            detail += f" and the llama.cpp engine ({ai_download.LLAMA_SIZE_TEXT})"
+        response = show_message(
+            self.window, Gtk.MessageType.QUESTION, "Download this refiner model?",
+            f"This downloads {detail}. It is a one-time download.\n\n"
+            "Everything runs on this computer. Your dictation is never sent anywhere.",
+            [("Cancel", Gtk.ResponseType.CANCEL), ("Download", Gtk.ResponseType.OK)],
+            default=Gtk.ResponseType.OK)
+        if response != Gtk.ResponseType.OK:
+            return False
+        from localdictation.download_progress_dialog import DownloadTask, run_downloads
+        tasks = []
+        if need_engine:
+            tasks.append(DownloadTask("AI engine", ai_download.LLAMA_SIZE_TEXT,
+                                      ai_download.make_engine_download_func()))
+        tasks.append(DownloadTask("AI model", size,
+                                  ai_download.make_model_download_func(model_id)))
+        result = run_downloads(
+            self.window, "Downloading the refiner",
+            "One-time download. Everything runs on this computer.", tasks,
+            arrived=lambda: ai_download.is_installed(model_id))
+        if not result:
+            show_message(self.window, Gtk.MessageType.ERROR,
+                         "The refiner download did not finish",
+                         "Check your internet connection and try again.")
+        return bool(result)
+
     def _on_voice_editing_toggled(self, check):
         """Turn voice editing on or off. It uses the same AI as self-corrections."""
         self._toggle_ai_feature(check, "voice_editing", self._on_voice_editing_toggled,
@@ -645,7 +715,7 @@ class AdvancedTab(Tab):
 
         response = show_message(
             self.window, Gtk.MessageType.QUESTION, question,
-            f"This downloads a small AI model ({ai_download.MODEL_SIZE_TEXT}) and the "
+            f"This downloads a small AI model ({ai_download.model_size_text()}) and the "
             f"llama.cpp engine that runs it ({ai_download.LLAMA_SIZE_TEXT}). It is a "
             "one-time download.\n\n"
             "Everything runs on this computer. Your dictation is never sent anywhere.",
@@ -661,7 +731,7 @@ class AdvancedTab(Tab):
             "One-time download. Everything runs on this computer.",
             [DownloadTask("AI engine", ai_download.LLAMA_SIZE_TEXT,
                           ai_download.make_engine_download_func()),
-             DownloadTask("AI model", ai_download.MODEL_SIZE_TEXT,
+             DownloadTask("AI model", ai_download.model_size_text(),
                           ai_download.make_model_download_func())],
             arrived=ai_download.is_installed)
 
