@@ -11,7 +11,7 @@ const nav = [
 
 const stats = [
   { value: "0", unit: "B", label: "Audio uploaded to a cloud service" },
-  { value: "1.7", unit: "GB", label: "One-time download for speech and refiner" },
+  { value: "670", unit: "MB", label: "Approximate download for the default speech model" },
   { value: "1", unit: "KEY", label: "Hold to dictate, release to insert" },
   { value: "MIT", unit: "", label: "License for the Falco app code" },
 ];
@@ -111,7 +111,8 @@ const specs = [
   ["Desktop", "GNOME or KDE · Wayland or X11"],
   ["Runtime", "Python 3.10–3.14 · GTK 3"],
   ["Optional UI", "Rust 1.99.1+ for Rune"],
-  ["Models", "About 1.7 GB, downloaded once"],
+  ["Speech model", "About 670 MB for Parakeet Ultra v3"],
+  ["Optional refiner", "About 1 GB extra, including its engine"],
   ["Account", "None"],
   ["License", "MIT for linux/ · upstream GPL-3.0"],
 ];
@@ -759,7 +760,7 @@ export default function Home() {
                   index="01"
                   label="Quick install"
                   command="curl -fsSL https://falco.lothnic.dev/install.sh | bash"
-                  note="Installs the Linux dependencies with sudo, then Falco under ~/.local/share/falco-app. Use --no-deps to manage packages yourself."
+                  note="Installs system dependencies with sudo, then the latest Falco release in your user account. The installer uses main until the first release."
                 />
                 <CopyCommand
                   index="02"
@@ -771,12 +772,11 @@ export default function Home() {
                   index="03"
                   label="From a checkout"
                   command={`git clone ${repo}.git && cd falco && ./linux/install.sh`}
-                  note="Installs under ~/.local/share/falco-app and adds ~/.local/bin/falco. The installer refuses to overwrite an existing installation."
+                  note="Installs under ~/.local/share/falco-app and adds ~/.local/bin/falco. Rerun the installer to upgrade."
                 />
                 <p className="install-note">
-                  Optional: for the Rune dashboard and recording overlay, append{" "}
-                  <code>bash -s -- --with-rune</code> to the quick install command. Without it,
-                  Falco uses the GTK tray interface.
+                  For the Rune dashboard and recording overlay, use{" "}
+                  <code>bash -s -- --with-rune</code> after the pipe in the quick install command.
                 </p>
               </div>
 

@@ -7,6 +7,7 @@ import re
 from . import custom_commands, focused_window, keyboard_output
 from . import live_settings as live
 from . import recording_state as rs
+from . import refiner_prefetch
 from .logger import setup_logger
 from .normalize import (
     append_auto_punct,
@@ -84,8 +85,24 @@ def _carry_on_sentence(text):
     return text
 
 
+def refine(raw: str, refiner_mode: str = "minimal"):
+    """*raw* as the refiner rewrites it, or None when it couldn't or its answer
+    is not plausible: an empty answer, or one over twice the transcript's
+    length or, past 8 words, under 0.4 of it. The same check both the release
+    and the guess made while recording use, so a prefetched answer is exactly
+    the one that would have been asked for."""
+    candidate = live.ai_engine.correct(raw, timeout=max(20.0, len(raw) / 20),
+                                       mode=refiner_mode)
+    before = len(raw.split())
+    after = len(candidate.split()) if candidate else 0
+    if candidate and after <= 2 * before and (before <= 8 or after >= 0.4 * before):
+        return candidate
+    return None
+
+
 def prepare_text(raw: str, smart_quotes: bool, auto_period: bool, auto_space: bool,
-                 app_kind: str = "", ai: bool = True) -> str:
+                 app_kind: str = "", ai: bool = True, refiner_mode: str = "minimal",
+                 serial: int | None = None) -> str:
     """Apply voice commands, normalize, handle mid-sentence, add auto-period/space.
 
     *app_kind* ("terminal", "code" or ""): the focused app wants plain text
@@ -93,20 +110,31 @@ def prepare_text(raw: str, smart_quotes: bool, auto_period: bool, auto_space: bo
     either).
     *ai* False skips the AI self-corrections: Type at pause asks the AI about
     a phrase together with the one before it instead (type_at_pause.correct_across_pause).
+    *serial* is the recording's (refiner_prefetch.begin()), so a refinement
+    guessed while the speaker talked can be used when it was made for exactly
+    this text.
 
     Returns the final text string ready for injection.
     """
     if app_kind:
         # A shell or a compiler doesn't read “curly” quotes as quotes.
         auto_period = smart_quotes = False
+    sentence_case = True
     # Send the unmodified transcript to the model before command placeholders
     # and normalization. Reject empty or implausibly long/short generations.
     if ai and live.ai_corrections and live.ai_engine is not None and raw.strip():
-        candidate = live.ai_engine.correct(raw, timeout=max(20.0, len(raw) / 20))
-        before = len(raw.split())
-        after = len(candidate.split()) if candidate else 0
-        if candidate and after <= 2 * before and (before <= 8 or after >= 0.4 * before):
+        # A guess made while the speaker talked (refiner_prefetch) is used when
+        # it was made for exactly this text; otherwise it is refined now.
+        candidate = refiner_prefetch.take(raw, serial) if serial is not None else None
+        if candidate is not None:
+            logger.info("Refiner: used the refinement made while recording")
+        else:
+            candidate = refine(raw, refiner_mode)
+        if candidate:
             raw = restore_opening_word(raw, candidate)
+            if refiner_mode == "casual":
+                auto_period = False
+                sentence_case = False
         else:
             logger.info("Refiner unavailable or output failed length guard; using transcript")
     # Apply custom voice commands (phrase → replacement)
@@ -124,6 +152,7 @@ def prepare_text(raw: str, smart_quotes: bool, auto_period: bool, auto_space: bo
     text = normalize_text(
         processed if smart_quotes else processed.replace("\u201c","\"").replace("\u201d","\""),
         auto_period=auto_period,
+        sentence_case=sentence_case,
     )
     # A lone "open quote" or "close quote" becomes a curly quote inside
     # normalize_text, so the preference is applied to its output as well.

@@ -36,6 +36,10 @@ class TrayAppInstance:
         """Get current service running state."""
         return self.tray.is_service_running()
 
+    @property
+    def dictation_check(self):
+        return self.tray.dictation_check
+
     def start_service(self):
         """Start service via tray."""
         self._unless_quitting(self.tray.start_service, None)

@@ -39,6 +39,8 @@ class Message:
     # Which recording it is (send_countdown.recording_begins numbered it): a
     # send for it waits while a newer one records.
     serial: int = 0
+    dictation_check: int = 0
+    dictation_check_destination: focused_window.Destination | None = None
     # What Type at pause's next phrase of this recording picks up: the last
     # phrase's final mark, held back for it to decide
     # (chunk_text.hold_back_boundary: {"mark", "audio", "raw", "typed",
@@ -115,6 +117,22 @@ class Recording:
     # The open stream's rate, which may not be the engines' 16 kHz (an ALSA
     # hw: device's own); engine.SAMPLE_RATE until a stream opens.
     samplerate: int = 16000
+    # Sample count and generation for the optional Rune draft.
+    preview_samples: int = 0
+    preview_generation: int | None = None
+    # Streaming dictation (streaming.py): the committed phrases so far, and
+    # the pause detector that decides where one may end. Both None unless the
+    # option is on and this recording is long enough to stream.
+    streamer: object = None
+    stream_pause: object = None
+    # The commit span in flight, so only one is queued at a time.
+    stream_pending: bool = False
+    # Audio handed to the streamer is counted in samples at the engine's
+    # rate, so spans line up with what the model heard.
+    stream_fed: int = 0
+    # This recording's serial (refiner_prefetch.begin()): a refinement guessed
+    # while it recorded is used only while the serial still matches.
+    stream_serial: int | None = None
     # Type at pause: its pause detector (chunking.PauseDetector) or None,
     # and how many phrases it has cut so far.
     chunker: object = None

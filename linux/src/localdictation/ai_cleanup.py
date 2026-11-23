@@ -174,14 +174,22 @@ _WARM_UP = "Order two boxes, no wait, three boxes."
 # Answers that mean the model had nothing to give.
 _NOT_AN_ANSWER = {"", "none", "null", "n/a", "nothing", "empty"}
 
+_MODE_CONTEXT = {
+    "minimal": "notes and documents",
+    "casual": "a chat message",
+    "formal": "an email or document",
+    "prompt": "an instruction to an AI assistant",
+}
 
-def _correction_messages(sentence):
+
+def _correction_messages(sentence, mode="minimal"):
     """The exact prompt format used to train the Phonon refiner."""
+    context = _MODE_CONTEXT[mode]
     return [
         {"role": "system", "content": (
             "Rewrite the raw dictation transcript into the exact text the speaker intended. "
             "Fix recognition errors and technical terms, keep the speaker's wording and casing style, "
-            "do not add or drop content.\nWriting mode: minimal (notes and documents).")},
+            f"do not add or drop content.\nWriting mode: {mode} ({context}).")},
         {"role": "user", "content": sentence},
     ]
 
@@ -198,9 +206,10 @@ class CorrectionEngine(AIServer):
     def __init__(self):
         super().__init__(warm_up=_correction_messages(_WARM_UP))
 
-    def correct(self, sentence: str, timeout: float = 6.0):
+    def correct(self, sentence: str, timeout: float = 6.0, *, mode: str = "minimal"):
         """The model's cleaned version of *sentence*, or None on any problem."""
-        return self.ask(_correction_messages(sentence), min(2048, max(64, len(sentence) + 32)), timeout, what="Phonon refiner")
+        return self.ask(_correction_messages(sentence, mode),
+                        min(2048, max(64, len(sentence) + 32)), timeout, what="Phonon refiner")
 
     def edit(self, text: str, instruction: str):
         """*text* rewritten as *instruction* says (voice editing), or None on

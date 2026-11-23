@@ -426,7 +426,7 @@ class TuxTalkDBusService(dbus.service.Object):
         """Restart TuxTalk (tray and dictation service) into a just-installed update"""
         self._dispatch('restart_app')
 
-    @dbus.service.method(DBUS_INTERFACE, in_signature='b')
+    @dbus.service.method(DBUS_INTERFACE, in_signature='b', out_signature='u')
     def NotifyRecordingState(self, is_recording: bool):
         """
         Called by the dictation engine (app.py) to report recording state changes.
@@ -442,6 +442,21 @@ class TuxTalkDBusService(dbus.service.Object):
             # still has to go out.
             pass
         self.RecordingStateChanged(is_recording)
+        check = getattr(self.app, "dictation_check", None)
+        return check.recording_changed(bool(is_recording)) if check is not None else 0
+
+    @dbus.service.method(DBUS_INTERFACE, in_signature='us')
+    def NotifyDictationCheck(self, attempt, outcome):
+        """Show a test result on the setup screen, when it is open."""
+        check = getattr(self.app, "dictation_check", None)
+        if check is not None:
+            check.report(int(attempt), str(outcome))
+
+    @dbus.service.method(DBUS_INTERFACE, in_signature='u', out_signature='b')
+    def DictationCheckHasFocus(self, attempt):
+        """Keep a practice dictation in its setup field."""
+        check = getattr(self.app, "dictation_check", None)
+        return check is not None and check.has_focus(int(attempt))
 
     @dbus.service.method(DBUS_INTERFACE, in_signature='s')
     def NotifyHotkeyPressed(self, key_name: str):

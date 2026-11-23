@@ -102,6 +102,7 @@ class DictationTray(ServiceLifecycle, Presets):
 
         # Track onboarding state - service should not start during onboarding
         self.onboarding_in_progress = False
+        self.dictation_check = None
 
         # tuxtalk --toggle/--start/--stop (control.py): the PID of the service
         # that said it's ready, and a recording asked for before then.
@@ -600,11 +601,9 @@ def main():
     recover_cut_off_restore()   # a restore killed between its files
     snapshot_if_changed()
 
-    from .ydotoold_leftovers import retire_ydotoold
     # Do not modify another installation.
     from .cuda_download import recover_cut_off_install
     recover_cut_off_install()   # before the service loads CUDA
-    from . import extension_helper
     # Do not modify the upstream GNOME extension.
     from .cuda_helper import remove_pytorch_link, remove_unused_cudnn
     remove_unused_cudnn()   # downloaded with CUDA until 0.19
@@ -685,8 +684,7 @@ def _adopt_old_install():
 
 
 def _start_first_run(tray, command):
-    """First run: the welcome screens once no dictation service runs, and
-    the service only after them."""
+    """Start the welcome screens once no service is holding the hotkeys."""
     logger.info("First run detected - starting onboarding")
     if command:
         from . import control
@@ -700,12 +698,21 @@ def _show_first_run_setup(tray):
     """The welcome screens with all setup options, then what their answer
     asks for. An error in onboarding still starts the service, and the
     welcome comes back next launch. False, for its GLib timer."""
+    def start_check(check):
+        # The setup hotkey test has released the keys. Let the regular
+        # service use them while the user tries their first dictation.
+        tray.dictation_check = check
+        tray.onboarding_in_progress = False
+        tray.start_service(None)
+
     try:
         from localdictation.first_run_setup import show_welcome_and_install
-        result = show_welcome_and_install()
+        result = show_welcome_and_install(start_check, tray._ready_service_pid)
     except Exception:
         logger.error("Onboarding failed", exc_info=True)
         result = None
+    finally:
+        tray.dictation_check = None
     _finish_first_run(tray, result)
     return False
 
@@ -750,7 +757,7 @@ def _finish_first_run(tray, result):
     # Refresh menu after installations
     tray.refresh_menu()
 
-    # Onboarding complete - NOW allow service to start
+    # A skipped check still needs to start the service.
     tray.onboarding_in_progress = False
     logger.info("Onboarding complete - starting service")
 
@@ -759,7 +766,8 @@ def _finish_first_run(tray, result):
     # On a thread: the rebuild can take seconds and would freeze the menu.
     threading.Thread(target=menu_cache.refresh_menu_cache, daemon=True).start()
 
-    tray._auto_start_service(500)
+    if tray._dictation_on and not tray.is_service_running():
+        tray._auto_start_service(500)
 
 
 def _start_normally(tray, command, open_window):

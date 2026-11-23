@@ -113,6 +113,41 @@ def arm_chunker(rec):
             rec.chunker = PauseDetector(live.chunk_pause_seconds, rec.samplerate)
     # Started here, so the audio callback never has to start it.
     dictation_worker.worker()
+    if live.streaming_dictation:
+        _arm_streamer(rec)
+
+
+# The pause a streaming dictation commits at. A phrase normally ends at a
+# longer pause than this, so a cut almost always lands between words; the
+# splice repairs the seam when it doesn't.
+STREAM_PAUSE_S = 0.6
+
+
+def _arm_streamer(rec):
+    """Give recording *rec* a streamer when streaming dictation is on.
+
+    Never alongside Type at pause, which takes the recording's own frames
+    away as it types each phrase, nor for a voice edit, whose instruction
+    needs the whole recording. Without either, the audio the streamer reads
+    is the audio the release would have read.
+
+    Only with an engine whose in-recording recognition exists
+    (engine.preview_transcript): the CPU Parakeet model. Whisper and the GPU
+    Parakeet have none, and their recordings are transcribed whole at
+    release, exactly as before streaming."""
+    if rec.edit_mode or rec.chunker is not None:
+        return
+    from . import engine, refiner_prefetch
+    if not engine.can_preview():
+        return
+    from .chunking import PauseDetector
+    from .streaming import Streamer
+    from .voice_detector import Unavailable
+    with contextlib.suppress(Unavailable):
+        rec.stream_pause = PauseDetector(STREAM_PAUSE_S, rec.samplerate)
+        rec.streamer = Streamer()
+        # A new recording: any refinement guessed for the last one is dropped.
+        rec.stream_serial = refiner_prefetch.begin()
 
 
 # Silence put between two chunks when the engine hears them together, so the

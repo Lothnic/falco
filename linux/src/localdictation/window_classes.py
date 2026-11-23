@@ -69,6 +69,27 @@ _WORD_PROCESSOR_CLASSES_LOWER = frozenset({
 })
 
 
+_CHAT_CLASSES = {"discord", "com.discordapp.discord", "vesktop", "dev.vencord.vesktop",
+                 "telegramdesktop", "org.telegram.desktop", "signal", "org.signal.signal"}
+_WORK_CLASSES = {"slack", "com.slack.slack", "teams", "teams-for-linux", "thunderbird",
+                 "org.mozilla.thunderbird", "evolution", "org.gnome.evolution",
+                 "kmail", "org.kde.kmail"}
+_PROMPT_CLASSES = {"opencode", "ai.opencode.desktop", "dev.zed.zed", "zed", "cursor",
+                   "com.cursor.cursor"}
+
+
+def refiner_mode_for_window(wm_class: str | None) -> str:
+    """Select a writing mode from an app ID, without reading window contents."""
+    name = (wm_class or "").casefold()
+    if name in _CHAT_CLASSES:
+        return "casual"
+    if name in _WORK_CLASSES:
+        return "formal"
+    if name in _PROMPT_CLASSES or app_kind(name):
+        return "prompt"
+    return "minimal"
+
+
 def is_word_processor(wm_class: str | None) -> bool:
     """Whether the focused app is a word processor, where Ctrl+B/I/U format text."""
     return bool(wm_class) and wm_class.lower() in _WORD_PROCESSOR_CLASSES_LOWER

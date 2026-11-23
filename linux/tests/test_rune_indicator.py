@@ -1,4 +1,5 @@
 """The optional overlay must not leave dictation without an indicator."""
+import json
 from threading import Lock
 from unittest.mock import Mock
 
@@ -90,3 +91,18 @@ def test_failed_sidecar_immediately_uses_fallback():
     overlay.show_at_position()
     overlay.fallback.show_at_position.assert_called_once()
     overlay.fallback.start_recording.assert_called_once()
+
+
+def test_preview_uses_the_current_generation_and_a_single_protocol_line():
+    overlay = indicator()
+    overlay._send = Mock()
+    overlay._available_generation = 4
+    draft = 'It said "hide"\nshow'
+    overlay.set_preview(3, draft)
+    overlay.set_preview(4, draft)
+    overlay._recording = False
+    overlay.set_preview(4, draft)
+    overlay._send.assert_called_once()
+    line = overlay._send.call_args.args[0]
+    assert "\n" not in line
+    assert json.loads(line.removeprefix("preview ")) == draft

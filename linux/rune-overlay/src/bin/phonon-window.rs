@@ -46,6 +46,7 @@ struct State {
     loaded: bool,
     notice: String,
     word_input: TextEdit,
+    recent_query: TextEdit,
     edit_input: TextEdit,
     editing: bool,
 }
@@ -266,16 +267,29 @@ fn page_header(title_text: &str, detail: &str) -> El {
         .child(heading(title_text.to_owned()))
         .child(secondary(detail.to_owned()))
 }
-fn recent_list(snapshot: &Snapshot, limit: usize) -> El {
+fn recent_list(snapshot: &Snapshot, limit: usize, query: &str) -> El {
     let mut list = col().w_full();
-    if snapshot.recent.is_empty() {
-        return list.child(secondary("Dictations from this session will appear here."));
-    }
-    for (i, value) in snapshot.recent.iter().take(limit).enumerate() {
-        if i > 0 {
+    let query = query.trim().to_lowercase();
+    let matches = snapshot
+        .recent
+        .iter()
+        .enumerate()
+        .filter(|(_, value)| query.is_empty() || value.to_lowercase().contains(&query))
+        .take(limit);
+    let mut empty = true;
+    for (index, value) in matches {
+        if !empty {
             list = list.child(rule());
         }
-        list = list.child(recent_row(value, i, limit == 3));
+        empty = false;
+        list = list.child(recent_row(value, index, limit == 3));
+    }
+    if empty {
+        list = list.child(secondary(if snapshot.recent.is_empty() {
+            "Dictations from this session will appear here."
+        } else {
+            "No dictations match your search."
+        }));
     }
     list
 }
@@ -350,7 +364,7 @@ fn home(s: &State) -> El {
                         .child(text("View all").font(type_::LABEL).color(accent())),
                 ),
         )
-        .child(card().child(recent_list(&s.snapshot, 3)))
+        .child(card().child(recent_list(&s.snapshot, 3, "")))
         .child(secondary(
             "Recent dictations stay in this session and are cleared at logout.",
         ))
@@ -413,7 +427,22 @@ fn recent(s: &State) -> El {
         );
     }
     contents
-        .child(card().child(recent_list(&s.snapshot, 20)))
+        .child(
+            text_input(&s.recent_query, type_::BODY)
+                .key("recent-search")
+                .label("Search recent dictations")
+                .placeholder("Search recent dictations", muted())
+                .single_line()
+                .w_full()
+                .h(40.0)
+                .px(12.0)
+                .py(9.0)
+                .radius(8.0)
+                .fill(panel())
+                .color(ink())
+                .on_edit(|s: &mut State| &mut s.recent_query),
+        )
+        .child(card().child(recent_list(&s.snapshot, 20, &s.recent_query.text)))
         .child(secondary(
             "Saved in the session's temporary storage and cleared at logout.",
         ))
@@ -807,5 +836,25 @@ mod tests {
         };
         assert_eq!(status(&snapshot, true).0, "Unavailable");
         assert_eq!(status(&snapshot, false).0, "Connecting");
+    }
+
+    #[test]
+    fn recent_search_matches_case_insensitively_and_edits_the_original_row() {
+        let mut state = State {
+            page: Page::Recent,
+            recent_query: TextEdit::new("  CAFÉ  "),
+            ..State::default()
+        };
+        preview(&mut state);
+        state
+            .snapshot
+            .recent
+            .push("Meet at the café on Monday.".into());
+        let mut rt = Runtime::new(state, view, (1000.0, 700.0), Env::new(true, 1.0));
+        rt.frame(0.0);
+        assert!(rt.find("recent-search").is_some());
+        assert!(rt.find("edit-0").is_none());
+        click(&mut rt, "edit-1");
+        assert_eq!(rt.state.edit_input.text, "Meet at the café on Monday.");
     }
 }

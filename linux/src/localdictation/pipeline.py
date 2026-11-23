@@ -24,6 +24,7 @@ from . import (
     resampling,
     send_countdown,
     silence,
+    tray_link,
     type_at_pause,
     voice_actions,
     voice_commands,
@@ -36,7 +37,7 @@ from .beeps import CANCEL_BEEP, READY_BEEP
 from .chunk_text import carry_question, engine_period, hold_back_boundary
 from .key_commands import auto_send, ends_unfinished, split_key_command
 from .logger import error_without_words, setup_logger
-from .window_classes import app_kind, pastes_broken, why_no_automatic_enter
+from .window_classes import app_kind, pastes_broken, refiner_mode_for_window, why_no_automatic_enter
 
 logger = setup_logger(__name__)
 
@@ -115,6 +116,12 @@ class _Job(NamedTuple):
     injection_mode: str
     chunk_role: str | None
     message: rs.Message
+    # Streaming dictation (streaming.py): the phrases already heard while the
+    # speaker talked, or None when the whole recording is transcribed here.
+    streamer: object = None
+    # The recording's serial (refiner_prefetch.begin()), so a refinement
+    # guessed while the speaker talked can be used for exactly this text.
+    serial: int | None = None
 
 
 class _Words(NamedTuple):
@@ -130,9 +137,23 @@ class _Words(NamedTuple):
     cut_off: str            # the word ("and") they were cut off on: what's said next carries on
 
 
+def _report_dictation_check(job: _Job, outcome: str) -> None:
+    if job.message.dictation_check:
+        tray_link.notify_dictation_check(job.message.dictation_check, outcome)
+
+
+def _check_focus_lost(job: _Job) -> bool:
+    attempt = job.message.dictation_check
+    if attempt and not tray_link.dictation_check_has_focus(attempt):
+        _report_dictation_check(job, "typing")
+        return True
+    return False
+
+
 def transcribe_and_inject(frames, rec_sr, beeps_on, smart_quotes, notify_on,
                           language=None, auto_space=True, auto_period=True,
-                          injection_mode="type", chunk_role=None, *, message):
+                          injection_mode="type", chunk_role=None, *, message,
+                          streamer=None, serial=None):
     """The slow half of stopping, on the dictation worker: transcribe the
     captured audio and type the text. It touches no GTK (the indicator was
     already hidden in recording.finish_capture), so it can run off the
@@ -147,7 +168,7 @@ def transcribe_and_inject(frames, rec_sr, beeps_on, smart_quotes, notify_on,
     work was queued, so a recording started meanwhile can't change where
     this one's Enter may go."""
     job = _Job(beeps_on, smart_quotes, notify_on, language, auto_space, auto_period,
-               injection_mode, chunk_role, message)
+               injection_mode, chunk_role, message, streamer, serial)
     t0 = time.time()
     logger.info("Recording stopped, starting transcription")
     try:
@@ -155,9 +176,11 @@ def transcribe_and_inject(frames, rec_sr, beeps_on, smart_quotes, notify_on,
         # queued or transcribed when Esc cancels its recording.
         audio_f32 = None if _cancelled(job) else _audio_to_hear(frames, rec_sr, job)
         raw = None if audio_f32 is None else _hear(audio_f32, job, t0)
-        if raw is None or _cancelled(job):
+        if raw is None or _cancelled(job) or _check_focus_lost(job):
             return
         raw, in_password = _before_the_words(raw, audio_f32, job)
+        if in_password:
+            _report_dictation_check(job, "typing")
         # Again after the context pass, which can take seconds: no command
         # runs and no key is pressed for a cancelled recording.
         if raw is None or _cancelled(job):
@@ -189,6 +212,7 @@ def transcribe_and_inject(frames, rec_sr, beeps_on, smart_quotes, notify_on,
         # The error's text can quote the words: the notice shows it to the
         # user, and the log leaves it out.
         logger.error(f"Transcription error: {error_without_words(e)}")
+        _report_dictation_check(job, "transcription")
         # The cancel beep and a notice whatever the notifications setting,
         # like notices.report_undelivered: nothing was typed, and the "done"
         # beep would sound like it worked.
@@ -261,6 +285,7 @@ def _audio_to_hear(frames, rec_sr, job: _Job):
     if audio_f32.size == 0:
         if not _nothing_in_chunk("had no audio", job):
             logger.info("No audio captured, so nothing was typed")
+            _report_dictation_check(job, "no_speech")
         return None
     if rec_sr != engine.SAMPLE_RATE:
         audio_f32 = resampling.resample(audio_f32, rec_sr, engine.SAMPLE_RATE)
@@ -270,6 +295,7 @@ def _audio_to_hear(frames, rec_sr, job: _Job):
     if silence.is_dead_mic(audio_f32, engine.SAMPLE_RATE):
         beeps.beep(job.beeps_on, *CANCEL_BEEP)
         notices.warn_silent_mic()
+        _report_dictation_check(job, "microphone")
         return None
 
     # A quick tap of the key with nothing said: speech engines can invent
@@ -280,14 +306,22 @@ def _audio_to_hear(frames, rec_sr, job: _Job):
         if not _nothing_in_chunk("had no speech", job):
             logger.info(f"Skipped {len(audio_f32) / engine.SAMPLE_RATE:.2f}s with no speech in it")
             beeps.beep(job.beeps_on, *CANCEL_BEEP)
+            _report_dictation_check(job, "no_speech")
         return None
     return audio_f32
 
 
 def _hear(audio_f32, job: _Job, t0: float):
     """What the engine heard; None, with the cancel beep for a whole
-    dictation, when it heard nothing."""
-    raw = engine.transcribe(audio_f32, job.language)
+    dictation, when it heard nothing.
+
+    A streaming dictation (job.streamer) has most of itself already
+    transcribed: only the audio after the seam is heard here, and the two
+    are spliced. When the seam can't be vouched for the whole recording is
+    transcribed instead, exactly as without streaming."""
+    raw = _hear_streamed(audio_f32, job) if job.streamer is not None else None
+    if raw is None:
+        raw = engine.transcribe(audio_f32, job.language)
     logger.info(f"TIMING: Transcription pipeline took {time.time() - t0:.2f}s")
     if job.chunk_role is not None:
         logger.info(f"Chunk ({job.chunk_role}): {len(audio_f32) / engine.SAMPLE_RATE:.1f}s, "
@@ -297,7 +331,32 @@ def _hear(audio_f32, job: _Job, t0: float):
     if not _nothing_in_chunk("was not recognised", job):
         logger.info("Nothing recognized, so nothing was typed")
         beeps.beep(job.beeps_on, *CANCEL_BEEP)
+        _report_dictation_check(job, "no_speech")
     return None
+
+
+def _hear_streamed(audio_f32, job: _Job):
+    """*audio_f32*'s text from the phrases already committed plus the audio
+    after the seam, or None when streaming cannot answer for it: the caller
+    then transcribes the whole recording.
+
+    The tail is heard from a little before the seam, so the words there are
+    in both halves and splice() can find them."""
+    streamer = job.streamer
+    total_s = len(audio_f32) / engine.SAMPLE_RATE
+    span = streamer.release_span(total_s)
+    if span is None:
+        return None
+    start_s, end_s = span
+    first = int(start_s * engine.SAMPLE_RATE)
+    last = int(end_s * engine.SAMPLE_RATE)
+    tail = audio_f32[max(0, first):max(0, last)]
+    if tail.size == 0:
+        return streamer.result("")
+    heard = engine.transcribe(tail, job.language)
+    logger.info(f"Streaming: heard the last {len(tail) / engine.SAMPLE_RATE:.1f}s of "
+                f"{total_s:.1f}s instead of the whole recording")
+    return streamer.result(heard)
 
 
 def _before_the_words(raw: str, audio_f32, job: _Job):
@@ -384,7 +443,12 @@ def _shape_text(raw: str, said: str, key, job: _Job):
     press, cut_off, held_back = key
     # Normalize text (voice commands, punctuation, spacing), plainer for a
     # terminal or code editor ("Plain text in terminals and code editors").
-    kind = app_kind(focused_window.window_class()) if live.adapt_to_app else ""
+    mode = live.refiner_mode
+    match_app = mode == "auto" and live.ai_corrections and live.ai_engine is not None
+    window = focused_window.window_class() if live.adapt_to_app or match_app else None
+    kind = app_kind(window) if live.adapt_to_app else ""
+    if mode == "auto":
+        mode = refiner_mode_for_window(window)
     # A pause is not a sentence end, so a middle chunk gets no auto-period
     # of its own; the last chunk (or type_at_pause.flush_boundary) ends the sentence.
     # "press enter" at the end of one does end it: the message is sent.
@@ -397,7 +461,8 @@ def _shape_text(raw: str, said: str, key, job: _Job):
     # four") goes to the AI together with the phrase it corrects.
     across = type_at_pause.corrects_across_pause(raw, job.chunk_role, job.message)
     text = dictation_text.prepare_text(raw, job.smart_quotes, chunk_period, job.auto_space,
-                                       app_kind=kind, ai=not across)
+                                       app_kind=kind, ai=not across, refiner_mode=mode,
+                                       serial=job.serial)
     if cut_off:
         # The engine may have put its own period after the "and".
         text = re.sub(r"\.(\s*)$", r"\1", text)
@@ -467,6 +532,8 @@ def _deliver(words: _Words, audio_f32, job: _Job) -> None:
     """Type the words into the active application, then what follows them.
     They go into the Recent Dictations list first, so they can be recovered
     even if typing lands in the wrong window or fails outright."""
+    if _check_focus_lost(job):
+        return
     send_countdown.type_owed_space(before=words.text)
     text = words.text
     chunked = job.chunk_role is not None
@@ -476,7 +543,8 @@ def _deliver(words: _Words, audio_f32, job: _Job) -> None:
         # window. Not a correction that took the phrase before back
         # (_still_wanted).
         with keyboard_output.until_cancelled(None if words.taken_back else job.message):
-            outcome = delivery.inject_text(text, job.injection_mode, message=job.message)
+            outcome = delivery.inject_text(text, job.injection_mode, message=job.message,
+                                           into=job.message.dictation_check_destination)
     except Exception as e:
         # The transcription worked; only getting it into the window
         # didn't, so this is reported as undelivered, not as a
@@ -486,6 +554,8 @@ def _deliver(words: _Words, audio_f32, job: _Job) -> None:
         job.message.add(outcome, None)
     if outcome == "password_field":
         last_dictation.unsay(job.message, said_before)
+    if outcome != "cancelled":
+        _report_dictation_check(job, "typed" if outcome == "ok" else "typing")
     last_dictation.remember_shown(rs.state.last_inserted_text, chunked, outcome == "ok",
                                   job.message)
     job.message.ends_on = ends_unfinished(words.raw)
@@ -578,9 +648,13 @@ def stop_recording(
     chunk_role = "last" if rec.chunks_submitted else None
     if chunk_role:
         frames = recording.drop_speechless_rest(rec, frames)
+    # Streaming dictation: frozen here, so a commit still in flight on the
+    # worker can't change what the release reads.
+    streamer = rec.streamer.snapshot() if rec.streamer is not None else None
     _finish(message, lambda: transcribe_and_inject(
         frames, rec_sr, beeps_on, smart_quotes, notify_on, language, auto_space,
-        auto_period, injection_mode, chunk_role=chunk_role, message=message))
+        auto_period, injection_mode, chunk_role=chunk_role, message=message,
+        streamer=streamer, serial=rec.stream_serial))
 
 
 def _finish(message, work) -> None:

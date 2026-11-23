@@ -4,7 +4,12 @@ An experimental community Linux dictation app built on [TuxTalk](https://github.
 
 [Website](https://falco.lothnic.dev) · [Main README](../README.md)
 
-The default speech model is Parakeet Ultra v3. The Phonon refiner is the default cleanup model and is English-only. It is downloaded separately when enabled; until its download is installed and it is loaded, dictation uses the unrefined transcript. The speech and cleanup model downloads total roughly 1.7 GB. Processing is local after downloading.
+The default speech model is Parakeet Ultra v3 (about **670 MB**). The optional Phonon refiner and its engine add about **1 GB** when enabled. The refiner is English-only. Falco uses the unrefined transcript until the refiner is ready. Processing is local after downloading.
+
+With the refiner active, **Preferences → Advanced → Refiner writing mode**
+offers Minimal, Casual, Formal, AI prompt, and Match the focused app. App
+matching uses the desktop's application ID and defaults to Minimal when
+Falco can't identify the app.
 
 ## Quick install
 
@@ -24,8 +29,29 @@ use:
 curl -fsSL https://falco.lothnic.dev/install.sh | bash -s -- --with-rune
 ```
 
-Pass `--no-deps` to skip package installation, or `--ref` to install a branch
-or tag other than `main`.
+The installer uses the latest published release tag and falls back to the
+preview from `main` until a release is published. Pass `--no-deps` to skip
+system packages, or `--ref` to choose a branch, tag, or commit.
+
+Rerun the installer to upgrade, with `--with-rune` if you use the dashboard
+and overlay. The existing launcher stays active until the new release is
+ready. Failed installs can be retried with the same command.
+
+### A .deb, for package-managed systems
+
+`packaging/build-deb.sh` builds a `.deb` that installs under `/usr` and is
+owned by your package manager, so upgrades and removal go through `apt`. Its
+dependencies are declared, so `apt` names anything missing instead of the app
+failing to start later.
+
+```sh
+./packaging/build-deb.sh          # add --with-rune once Rune is built
+sudo apt install ./dist/falco_*.deb
+```
+
+The package carries a Python environment built on the machine that builds it,
+so build it on the oldest distribution release it should run on (Ubuntu, per
+above). Continuous integration builds and installs it on every push.
 
 ## Ubuntu setup
 
@@ -35,7 +61,7 @@ Install the system dependencies (package names vary on other distributions):
 sudo apt install python3 python3-venv python3-pip python3-gi python3-gi-cairo python3-dbus python3-evdev gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1 libportaudio2 wl-clipboard
 ```
 
-To include the Rune window and overlay, first build both binaries from the repository root with `cargo build --release --locked --manifest-path linux/rune-overlay/Cargo.toml` (Rust 1.99.1 or newer is required). Then run `./install.sh` from this directory. It installs the source, Python dependencies, a `falco` command, and an application launcher in your user account. If the Rune binaries are present, the launcher opens the new dashboard; otherwise it starts the existing tray interface. Then start **Falco** from your applications. The first-run screens configure typing permissions, a hotkey and a speech model. In Preferences → Advanced, enable **Refine dictation with Phonon’s local model** to download and activate the refiner. Do not run this package at the same time as the earlier prototype: both can listen for the same hotkeys. The app needs access to keyboard events and virtual input on Wayland; the first-run screens can guide you through those permissions.
+To include the Rune window and overlay, first build both binaries from the repository root with `cargo build --release --locked --manifest-path linux/rune-overlay/Cargo.toml` (Rust 1.99.1 or newer is required). Then run `./install.sh` from this directory. It installs the source, Python dependencies, a `falco` command, and an application launcher in your user account. If the Rune binaries are present, the launcher opens the new dashboard; otherwise it starts the existing tray interface. Then start **Falco** from your applications. The first-run screens configure typing permissions, a hotkey, and a speech model, then offer a test dictation. In Preferences → Advanced, enable **Refine dictation with Phonon’s local model** to download and activate the refiner. Do not run this package at the same time as the earlier prototype: both can listen for the same hotkeys. The app needs access to keyboard events and virtual input on Wayland; the first-run screens can guide you through those permissions.
 
 For development, create a virtual environment with system site packages and run `python -m localdictation.tray`. The `localdictation` Python module name is an internal implementation detail.
 
@@ -55,6 +81,68 @@ The existing GTK recording indicator remains the default. The optional Rune
 sidecar shows a sound-responsive **Listening** indicator and a **Finishing…**
 state while a dictation is processed. If the sidecar cannot start or cannot
 show an overlay, the existing GTK recording indicator remains available.
+
+To show provisional words while recording, enable **Show a live transcript
+in Rune** under **Preferences → Audio → Customize**. This setting is off by
+default. It uses Parakeet on the CPU and applies to dictations inserted at
+release. The overlay keeps a short draft in memory for the current recording.
+Falco runs the usual full transcription and optional refinement at release.
+
+Search your session's dictations in the Rune dashboard's **Recent** tab.
+
+## Start typing sooner
+
+Long dictations can be heard while you speak instead of after you stop, so the
+wait at release does not grow with how long you talked. Enable **Start typing
+sooner** under **Preferences → Audio → Customize**. It is off by default.
+
+What happens: at each pause you make, the phrase so far is transcribed and
+kept. At release only the audio after the last pause is transcribed, and the
+two are joined. Pauses, not volume, decide the cuts, so no word is split. The
+release hears a little before the last pause as well, and the words it hears
+twice are dropped by lining the two sides up.
+
+When the two sides can't be lined up — a phrase heard very differently with and
+without the words after it, or a failed intermediate pass — the whole
+recording is transcribed as before. A slower dictation is preferred to a
+wrongly joined one, and the log says which happened.
+
+It needs the CPU Parakeet model: Whisper and the GPU engine have no
+in-recording recognition, so their dictations are transcribed whole at
+release. It also stays off with **Type at pause**, which types each phrase as
+it is cut, and for voice edits.
+
+With the refiner on, the refined text is worked out during the recording too
+(`refiner_prefetch.py`): the transcript so far is refined in the background at
+each pause, and at release the answer is reused when it was made for exactly
+the finished transcript, character for character. Otherwise the release refines
+as usual, so this can only save time, never change the words.
+
+## The command line
+
+`falco` is more than the launcher. `falco transcribe` turns a file into text
+without a window and without the app running, so it works in a script or over
+SSH:
+
+```sh
+falco transcribe talk.mp3                    # the text, to standard output
+falco transcribe talk.mp4 -o talk.txt        # to a file
+falco transcribe talk.mp4 --srt              # subtitles
+falco transcribe talk.mp4 --clean            # ums and repeats removed
+falco transcribe a.wav b.m4a                 # several files, in order
+```
+
+It reads WAV, MP3, M4A, OGG, FLAC and the sound of MP4, MKV and WebM videos,
+using the model you dictate with. Nothing is sent anywhere. `--quiet` drops the
+progress line, and progress always goes to standard error so standard output
+stays the transcript.
+
+`falco --toggle`, `--start`, `--stop`, `--open NAME` and `--quit` control a
+running Falco, as before. With no arguments it starts the app.
+
+The entry point is `cli.py`, which answers `transcribe` without importing GTK
+and hands everything else to the tray unchanged. That is why it works over SSH
+and in a container with no display.
 
 To try it, install Rust 1.99.1 or newer and build the pinned Rune revision:
 

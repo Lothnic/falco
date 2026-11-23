@@ -70,6 +70,23 @@ class IndicatorSettings(Tab):
         for side in ("start", "end", "top", "bottom"):
             getattr(grid, f"set_margin_{side}")(20)
         row = self._build_look(grid, 0)
+        preview = Gtk.CheckButton(label="Show a live transcript in Rune")
+        preview.set_active(self.config.get("rune_live_preview", False))
+        preview.set_tooltip_text("Shows recent words while you speak with Parakeet on the CPU. "
+                                 "Uses extra processing during recording.")
+        preview.connect("toggled", lambda value: self.update_config(
+            "rune_live_preview", value.get_active()))
+        grid.attach(preview, 0, row, 2, 1)
+        row += 1
+        streaming = Gtk.CheckButton(label="Start typing sooner")
+        streaming.set_active(self.config.get("streaming_dictation", False))
+        streaming.set_tooltip_text(
+            "Hears each phrase while you speak, so the wait after you release the key "
+            "stays short however long you talk. Uses extra processing during recording.")
+        streaming.connect("toggled", lambda value: self.update_config(
+            "streaming_dictation", value.get_active()))
+        grid.attach(streaming, 0, row, 2, 1)
+        row += 1
         row = self._build_color(grid, row)
         row = self._build_response(grid, row)
         row = self._build_position(grid, row, can_move)

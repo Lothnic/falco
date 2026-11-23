@@ -1,19 +1,23 @@
 use rune::tok::type_;
 use rune::{
-    Align, App, AppSpec, Color, Cx, El, OverlayOptions, OverlaySpec, ScreenEdge, el, row, text,
+    Align, App, AppSpec, Color, Cx, El, OverlayOptions, OverlaySpec, ScreenEdge, col, el, row, text,
 };
 use std::io::{self, BufRead, Write};
+
+const HUD_SIZE: (f32, f32) = (408.0, 118.0);
 
 #[derive(Clone)]
 struct Hud {
     level: f32,
     processing: bool,
+    draft: String,
 }
 impl Default for Hud {
     fn default() -> Self {
         Self {
             level: 0.25,
             processing: false,
+            draft: String::new(),
         }
     }
 }
@@ -46,7 +50,34 @@ fn view(s: &Hud, _: &mut Cx<Hud>) -> El {
     } else {
         "Listening"
     };
-    row().key("overlay").w_full().h_full().center().child(
+    let mut overlay = col()
+        .key("overlay")
+        .w_full()
+        .h_full()
+        .items_center()
+        .justify_end()
+        .pb(10.0)
+        .gap(8.0);
+    if !s.processing && !s.draft.is_empty() {
+        overlay = overlay.child(
+            row()
+                .max_w(390.0)
+                .px(16.0)
+                .py(8.0)
+                .center_y()
+                .radius(12.0)
+                .fill(c(0.10, 0.14, 0.17))
+                .child(
+                    text(s.draft.clone())
+                        .key("draft")
+                        .font(type_::BODY)
+                        .color(c(0.96, 0.98, 0.97))
+                        .wrap()
+                        .max_lines(2),
+                ),
+        );
+    }
+    overlay.child(
         row()
             .key("pill")
             .h(44.0)
@@ -83,8 +114,11 @@ fn spec() -> AppSpec<Hud> {
             ("processing", |s| {
                 s.processing = true;
             }),
+            ("draft", |s| {
+                s.draft = "Let's move the design review to Friday morning.".into();
+            }),
         ],
-        ..AppSpec::new("Phonon overlay", (220.0, 64.0), Hud::default, view)
+        ..AppSpec::new("Falco overlay", HUD_SIZE, Hud::default, view)
     }
 }
 fn main() {
@@ -96,7 +130,7 @@ fn main() {
     let overlay = app.overlay(
         OverlaySpec {
             name: "phonon-dictation",
-            size: (220.0, 64.0),
+            size: HUD_SIZE,
             edge: ScreenEdge::Bottom,
             margin: 32.0,
             align: Align::Center,
@@ -114,17 +148,30 @@ fn main() {
     std::thread::spawn(move || {
         for line in io::stdin().lock().lines() {
             let Ok(line) = line else { break };
+            if let Some(json) = line.strip_prefix("preview ") {
+                if let Ok(draft) = serde_json::from_str::<String>(json) {
+                    overlay.update(move |s, _| s.draft = draft);
+                }
+                continue;
+            }
             let mut words = line.split_whitespace();
             match words.next() {
                 Some("show") => {
                     overlay.update(|s, _| {
                         s.processing = false;
                         s.level = 0.0;
+                        s.draft.clear();
                     });
                     overlay.show();
                 }
-                Some("hide") => overlay.hide(),
-                Some("processing") => overlay.update(|s, _| s.processing = true),
+                Some("hide") => {
+                    overlay.hide();
+                    overlay.update(|s, _| s.draft.clear());
+                }
+                Some("processing") => overlay.update(|s, _| {
+                    s.processing = true;
+                    s.draft.clear();
+                }),
                 Some("level") => {
                     if let Some(Ok(level)) = words.next().map(str::parse::<f32>) {
                         if level.is_finite() {

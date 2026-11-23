@@ -304,7 +304,7 @@ def _offer_kde_notification_help():
         logger.warning(f"Could not show KDE notification help window: {e}")
 
 
-def show_welcome_and_install():
+def show_welcome_and_install(start_check=None, check_ready=None):
     """
     Run first-run setup from start to end: the welcome screen, the GNOME
     extension if ticked, the hotkey test, the speech model, the AppImage put
@@ -337,7 +337,6 @@ def show_welcome_and_install():
     # Then download exactly what the welcome card showed.
     model_ready = _apply_first_run_setup(result) if "model" in result else True
 
-    from localdictation import appimage_copy
     appimage_installed, launcher_created = False, False  # keep Phonon Linux launchers untouched
 
     # Fix Typing on the "input" group path needs a reboot before the hotkeys
@@ -349,6 +348,8 @@ def show_welcome_and_install():
         needs_restart=bool(result.get('needs_restart')),
         extension_installed=extension_installed,
         model_ready=model_ready,
+        start_check=start_check,
+        check_ready=check_ready,
     )
     _offer_kde_notification_help()
     logger.info("First-run setup completed")

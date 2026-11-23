@@ -7,6 +7,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
 
+from .config import REFINER_MODES
 from .prefs_system_check import SystemCheck
 from .prefs_tab import LABS_INDENT, Tab, dropdown, fold, subheading, tip_label
 from .prefs_type_at_pause import TypeAtPause
@@ -125,6 +126,20 @@ class AdvancedTab(Tab):
                            f'One-time download of about {ai_download.DOWNLOAD_SIZE_TEXT}.</span>')
         ai_note.set_opacity(0.7)
         grid.attach(ai_note, 0, row, 2, 1)
+        row += 1
+
+        mode = dropdown(Gtk.ComboBoxText())
+        for key, title in REFINER_MODES.items():
+            mode.append(key, title)
+        mode.set_active_id(self.config.get("refiner_mode", "minimal"))
+        mode.set_tooltip_text("Applies when the optional Phonon refiner is active. "
+                              "Matching the app uses its application ID.")
+        mode.connect("changed", lambda combo: self.update_config(
+            "refiner_mode", combo.get_active_id()))
+        mode_label = Gtk.Label(label="Refiner writing mode", xalign=0)
+        mode_label.set_mnemonic_widget(mode)
+        grid.attach(mode_label, 0, row, 1, 1)
+        grid.attach(mode, 1, row, 1, 1)
         row += 1
         return row
 

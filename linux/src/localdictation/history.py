@@ -103,16 +103,24 @@ def _take_lock(wait_s):
 
 
 def get_entries():
-    """Recent dictations, newest first. Never raises."""
+    """Recent dictations, newest first. Never raises.
+
+    A file that is valid JSON but not a list of strings (a stray write, a
+    disk error, a hand edit) is read as no list at all rather than raising:
+    the dashboard, the tray menu and "Fix a Word" all read this, and a
+    damaged list must not take them down with it."""
     path = history_path()
     if path is None:
         return []
     try:
         with open(path, encoding="utf-8") as f:
             entries = json.load(f)
-        return [e for e in entries if isinstance(e, str)][:MAX_ENTRIES]
     except (OSError, ValueError):
         return []
+    if not isinstance(entries, list):
+        logger.warning(f"Recent Dictations: {type(entries).__name__} in the list file, not a list")
+        return []
+    return [e for e in entries if isinstance(e, str)][:MAX_ENTRIES]
 
 
 def _clean(text):

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "falco-dictation"
-version = "0.1.0"
+version = "2.0.0"
 description = "Voice dictation for Linux: hold a key, talk, and your words are typed for you."
 authors = ["Ron"]
 license = "MIT"
@@ -40,7 +40,9 @@ text2num = "^3.1"
 # GPU (RTX 4070 SUPER). Removing it cut the packaged size by ~170 MB (.deb 302 MB → 133 MB).
 
 [tool.poetry.scripts]
-falco = "localdictation.tray:main"
+# cli.main, not tray.main: it answers `falco transcribe` without importing GTK,
+# and hands everything else to the tray unchanged (see cli.py).
+falco = "localdictation.cli:main"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.1"
@@ -69,22 +71,22 @@ select = ["F", "B", "SIM"]
 ignore = ["SIM105"]
 
 # The rules each file already broke when bugbear and simplify were turned on.
-# How many times each one is kept in tests/ruff_baseline.json, which
-# tests/test_ruff_ratchet.py lets only go down; a rule is struck here when
-# its count reaches none, and holds for that file from then on.
+# Kept in tests/ruff_baseline.json, which tests/test_ruff_ratchet.py lets only
+# go down; a rule is struck here when its count reaches none, and holds for
+# that file from then on.
 [tool.ruff.lint.per-file-ignores]
-"src/tuxtalk/ai_cleanup.py" = ["B905"]
-"src/tuxtalk/audio_duck.py" = ["SIM114"]
-"src/tuxtalk/config.py" = ["B023"]
-"src/tuxtalk/custom_words.py" = ["B905"]
-"src/tuxtalk/file_transcribe.py" = ["B905"]
-"src/tuxtalk/normalize.py" = ["SIM905"]
-"src/tuxtalk/notes_text.py" = ["SIM102"]
-"src/tuxtalk/recording_indicator.py" = ["SIM108"]
-"src/tuxtalk/settings_backup.py" = ["B904", "SIM905"]
-"src/tuxtalk/virtual_keyboard.py" = ["B904", "SIM300"]
-"src/tuxtalk/vocabulary.py" = ["SIM905"]
-"src/tuxtalk/voice_edit_rules.py" = ["SIM905"]
+"src/localdictation/ai_cleanup.py" = ["B905"]
+"src/localdictation/audio_duck.py" = ["SIM114"]
+"src/localdictation/config.py" = ["B023"]
+"src/localdictation/custom_words.py" = ["B905"]
+"src/localdictation/file_transcribe.py" = ["B905"]
+"src/localdictation/normalize.py" = ["SIM905"]
+"src/localdictation/notes_text.py" = ["SIM102"]
+"src/localdictation/recording_indicator.py" = ["SIM108"]
+"src/localdictation/settings_backup.py" = ["B904", "SIM905"]
+"src/localdictation/virtual_keyboard.py" = ["B904", "SIM300"]
+"src/localdictation/vocabulary.py" = ["SIM905"]
+"src/localdictation/voice_edit_rules.py" = ["SIM905"]
 
 # A test compares what it got with what it expects, in that order; SIM300
 # would put an expected set first whenever the other side is in capitals.

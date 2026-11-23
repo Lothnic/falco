@@ -184,6 +184,22 @@ def is_parakeet() -> bool:
     return isinstance(model, (ParakeetModel, ParakeetGpuModel))
 
 
+def can_preview() -> bool:
+    """Preview uses the already loaded CPU model and never wakes an engine."""
+    from .parakeet_engine import ParakeetModel
+    return isinstance(model, ParakeetModel)
+
+
+def preview_transcript(audio_f32) -> str:
+    """A provisional transcription with no transcript logging or refinement."""
+    from .parakeet_engine import ParakeetModel, steer
+    loaded = model
+    if not isinstance(loaded, ParakeetModel) or silence.has_no_speech(audio_f32, SAMPLE_RATE):
+        return ""
+    steer(loaded, live.words)
+    return hallucinations.strip(loaded.recognize(audio_f32))
+
+
 def wake(fresh: bool = False):
     """The speech model, loaded again first if Power Saving let it go, or
     None if it won't load. Called with *fresh* when a recording starts,

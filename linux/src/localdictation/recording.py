@@ -19,9 +19,11 @@ from . import (
     chunking,
     dictation_worker,
     engine,
+    focused_window,
     keyboard_grab,
     mic_stream,
     notices,
+    resampling,
     send_countdown,
     silence,
     tray_link,
@@ -86,6 +88,8 @@ def resume_media_players():
 
 
 CHANNELS = 1
+PREVIEW_INTERVAL_S = 1.5
+PREVIEW_WINDOW_S = 4
 
 
 def feed_indicator(indicator, indata, spectrum_processor):
@@ -266,6 +270,15 @@ def _sd_callback(rec, indata, frames_count, time_info, status):
         chunker = rec.chunker
         if chunker is not None and _heard(rec, "chunker", chunker, indata):
             type_at_pause.cut_chunk(rec, chunker)
+        # Streaming dictation: at a pause, the phrase so far is heard and
+        # kept, so the release only has to transcribe what follows it.
+        stream_pause = rec.stream_pause
+        if stream_pause is not None:
+            _stream_audio(rec, indata)
+            if _heard(rec, "streaming", stream_pause, indata):
+                _queue_commit(rec)
+        if rec.preview_generation is not None:
+            _queue_preview(rec, frames_count)
 
     # Hands-free auto-stop: when the speaker has finished, ask the service
     # loop to stop it, exactly as a second press of the toggle key would.
@@ -280,8 +293,131 @@ def _sd_callback(rec, indata, frames_count, time_info, status):
         feed_indicator(indicator, indata, spectrum_processor)
 
 
+def _queue_preview(rec, frames_count):
+    """Keep one bounded recognition job in flight, only on an idle worker."""
+    rec.preview_samples += frames_count
+    if (rec.preview_samples < rec.samplerate * PREVIEW_INTERVAL_S
+            or not dictation_worker.idle()):
+        return
+    rec.preview_samples = 0
+    needed = 2 * rec.samplerate * PREVIEW_WINDOW_S
+    first = len(rec.frames)
+    while first and needed > 0:
+        first -= 1
+        needed -= len(rec.frames[first])
+    frames = rec.frames[first:]
+    generation = rec.preview_generation
+    overlay = indicator
+    dictation_worker.submit(lambda: _render_preview(rec, overlay, generation, frames))
+
+
+def _render_preview(rec, overlay, generation, frames):
+    """Decode a recent audio window, leaving the final dictation untouched."""
+    if not (rs.state.is_recording and rs.state.current is rec and not rec.captured
+            and overlay.preview_available(generation)):
+        return
+    if focused_window.is_password():
+        rec.preview_generation = None
+        overlay.set_preview(generation, "")
+        return
+    audio = frames_f32(frames)[-rec.samplerate * PREVIEW_WINDOW_S:]
+    if rec.samplerate != engine.SAMPLE_RATE:
+        audio = resampling.resample(audio, rec.samplerate, engine.SAMPLE_RATE)
+    draft = engine.preview_transcript(audio)
+    if not (rs.state.is_recording and rs.state.current is rec and not rec.captured
+            and overlay.preview_available(generation)):
+        return
+    if focused_window.is_password():
+        rec.preview_generation = None
+        overlay.set_preview(generation, "")
+    elif draft:
+        overlay.set_preview(generation, " ".join(draft.split())[-160:])
+
+
 # What each detector _heard feeds is for, in its log line.
-_DETECTOR_NAMES = {"chunker": "Type at pause", "silence": "Hands-free"}
+_DETECTOR_NAMES = {"chunker": "Type at pause", "silence": "Hands-free",
+                   "streaming": "Streaming dictation"}
+
+
+def _stream_audio(rec, indata):
+    """Count the block just captured toward the streaming dictation's
+    timeline, in samples at the microphone's own rate: spans are sliced from
+    rec.frames, which holds that rate."""
+    rec.stream_fed += np.frombuffer(indata, dtype=np.int16).size
+
+
+def _queue_commit(rec):
+    """At a pause, hand the phrase so far to the dictation worker to be
+    transcribed and committed, leaving the final transcript untouched.
+
+    One commit at a time, and only on an idle worker: a commit is an extra
+    recognition the release doesn't have to wait for, so it must never make
+    the dictation slower. Skipped while a worker is busy with the previous
+    phrase, whose audio the next span covers anyway."""
+    streamer = rec.streamer
+    if streamer is None or rec.stream_pending or not dictation_worker.idle():
+        return
+    total_s = rec.stream_fed / rec.samplerate
+    span = streamer.commit_span(total_s)
+    if span is None:
+        return
+    rec.stream_pending = True
+    dictation_worker.submit(lambda: _commit(rec, span))
+
+
+def _commit(rec, span):
+    """Transcribe one commit span and add it to the recording's streamer, on
+    the dictation worker."""
+    try:
+        audio = _stream_slice(rec, span)
+        if audio is None or audio.size == 0:
+            return
+        rec.streamer.accept(engine.preview_transcript(audio), span[1])
+        _prefetch_refinement(rec)
+    except Exception as e:
+        # A failed commit only costs speed: the release transcribes the whole
+        # recording when the seam can't be vouched for.
+        logger.warning(f"Streaming: a phrase wasn't heard, "
+                       f"the release will transcribe it again: {error_without_words(e)}")
+        if rec.streamer is not None:
+            rec.streamer.trusted = False
+    finally:
+        rec.stream_pending = False
+
+
+def _prefetch_refinement(rec):
+    """With the text so far committed, work out its refined version while the
+    speaker goes on talking (refiner_prefetch).
+
+    This is what keeps the wait short for a dictation that uses the refiner:
+    the model reading the whole transcript was the slowest step at release,
+    and most dictations end on a pause, so the guess is usually the finished
+    text. A wrong guess costs nothing but processor time: the release compares
+    the text character for character before using it."""
+    from . import dictation_text, refiner_prefetch
+    if not (live.ai_corrections and live.ai_engine is not None):
+        return
+    text = rec.streamer.committed.strip() if rec.streamer is not None else ""
+    if not text:
+        return
+    mode = live.refiner_mode
+    refiner_prefetch.offer(
+        text, lambda said: dictation_text.refine(said, mode), rec.stream_serial)
+
+
+def _stream_slice(rec, span):
+    """The recording's audio for *span* (seconds from its start), as float
+    samples at the engine's rate, or None when it isn't there yet."""
+    start_s, end_s = span
+    first = int(start_s * rec.samplerate)
+    last = int(end_s * rec.samplerate)
+    audio = frames_f32(rec.frames)
+    if audio.size == 0:
+        return None
+    audio = audio[max(0, first):max(0, last)]
+    if rec.samplerate != engine.SAMPLE_RATE:
+        audio = resampling.resample(audio, rec.samplerate, engine.SAMPLE_RATE)
+    return audio
 
 
 def _heard(rec, which: str, detector, indata) -> bool:
@@ -379,6 +515,7 @@ def start_recording(beeps_on: bool, notify_on: bool, input_device_idx,
             if notify_on:
                 notify_module.notify("Microphone unavailable",
                                      "Check that no other app is using it.")
+            tray_link.notify_dictation_check(0, "microphone")
             _leave_held_send_unsent(rec)
             return None
 
@@ -387,11 +524,17 @@ def start_recording(beeps_on: bool, notify_on: bool, input_device_idx,
     rec.start_beep = beeps.beep(beeps_on, *START_BEEP)
     if notify_on:
         notify_module.notify("Recording… speak now", "")
-    tray_link.notify_recording_state(True)
+    rec.message.dictation_check = tray_link.notify_recording_state(True)
+    if rec.message.dictation_check:
+        rec.message.dictation_check_destination = focused_window.destination()
     if indicator:
         try:
-            indicator.show_at_position()
+            generation = indicator.show_at_position()
             indicator.start_recording()
+            if (generation is not None and live.rune_live_preview and not rec.edit_mode
+                    and not rec.message.dictation_check and live.chunk_pause_seconds == 0
+                    and engine.can_preview() and not focused_window.is_password()):
+                rec.preview_generation = generation
         except Exception as e:
             logger.error(f"Failed to show recording indicator: {e}", exc_info=True)
 
@@ -404,7 +547,8 @@ def start_recording(beeps_on: bool, notify_on: bool, input_device_idx,
     return rec
 
 
-def cancel_recording(rec, beeps_on: bool, notify_on: bool, reason="Cancelled"):
+def cancel_recording(rec, beeps_on: bool, notify_on: bool, reason="Cancelled",
+                     *, check_outcome="cancelled"):
     """End recording *rec*, the current one (this clears is_recording),
     without transcribing it, telling the user *reason*. A send it held stays
     unsent, and that's said (_leave_held_send_unsent): Esc, a tap,
@@ -421,6 +565,8 @@ def cancel_recording(rec, beeps_on: bool, notify_on: bool, reason="Cancelled"):
     if indicator:
         indicator.hide_indicator()
     tray_link.notify_recording_state(False)
+    if rec.message.dictation_check:
+        tray_link.notify_dictation_check(rec.message.dictation_check, check_outcome)
     _leave_held_send_unsent(rec)
 
 
@@ -434,6 +580,8 @@ def cancel_finishing(rec, beeps_on: bool, notify_on: bool) -> None:
     rec.message.cancelled = True
     beeps.beep(beeps_on, *CANCEL_BEEP)
     logger.info("Recording cancelled: Esc while it was still being finished")
+    if rec.message.dictation_check:
+        tray_link.notify_dictation_check(rec.message.dictation_check, "cancelled")
     if notify_on:
         notify_module.notify("Cancelled by ESC", "")
 
@@ -535,7 +683,8 @@ def _dropped_as_silent(rec, beeps_on: bool, notify_on: bool) -> bool:
     rec.silence = None
     dead_mic = frames_are_dead_mic(rec.frames, rec.samplerate)
     cancel_recording(rec, beeps_on, notify_on and not dead_mic,
-                     "Nothing heard, so nothing was typed")
+                     "Nothing heard, so nothing was typed",
+                     check_outcome="microphone" if dead_mic else "no_speech")
     if dead_mic:
         notices.warn_silent_mic()
     return True
@@ -556,5 +705,6 @@ def _dropped_as_a_tap(rec, beeps_on: bool, notify_on: bool) -> bool:
     if rec.held_send or send_countdown.held_for(rec.message.serial):
         cancel_recording(rec, beeps_on, False, send_countdown.HELD_NOTICE)
     else:
-        cancel_recording(rec, beeps_on, notify_on, f"Cancelled (held {held_ms} ms)")
+        cancel_recording(rec, beeps_on, notify_on, f"Cancelled (held {held_ms} ms)",
+                         check_outcome="no_speech")
     return True

@@ -30,9 +30,54 @@ jobs:
       - name: Install Linux test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pytest python3-numpy python3-evdev python3-gi python3-dbus python3-sounddevice python3-toml
+          sudo apt-get install -y python3-pytest python3-venv python3-numpy python3-evdev python3-gi python3-dbus python3-sounddevice python3-toml gir1.2-gtk-3.0 xvfb xauth xdotool
       - name: Test Linux app
-        run: PYTHONPATH=linux/src /usr/bin/python3 -m pytest linux/tests -q
+        run: GDK_BACKEND=x11 PYTHONPATH=linux/src xvfb-run -a /usr/bin/python3 -m pytest linux/tests -q
+      - name: Lint Linux app
+        run: uvx ruff check linux/src linux/tests
+      - name: The command line works without a display
+        # `falco transcribe` is meant for scripts and SSH: it must not need a
+        # window system, and must not import GTK to print its own help.
+        run: |
+          env -u DISPLAY -u WAYLAND_DISPLAY PYTHONPATH=linux/src \
+            /usr/bin/python3 -m localdictation.cli help | grep -q 'falco transcribe'
+          env -u DISPLAY -u WAYLAND_DISPLAY PYTHONPATH=linux/src \
+            /usr/bin/python3 -m localdictation.cli transcribe --help | grep -q -- '--srt'
+
+  linux-deb:
+    # The .deb is built, installed and started here rather than on anyone's
+    # machine: the recipe and its dependencies are checked on every push, and
+    # an install that would fail for a user fails the build instead.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fakeroot python3-venv python3-gi python3-dbus
+      - name: Build the .deb
+        run: |
+          FALCO_DEB_OUT="$RUNNER_TEMP/deb" ./linux/packaging/build-deb.sh
+          deb="$(ls "$RUNNER_TEMP"/deb/falco_*.deb)"
+          dpkg-deb --info "$deb"
+          dpkg-deb --contents "$deb"
+          # The package must name the system packages it needs, and carry the
+          # command and the launcher it promises.
+          dpkg-deb --field "$deb" Depends | grep -q python3-gi
+          dpkg-deb --contents "$deb" | grep -q ./usr/bin/falco
+          dpkg-deb --contents "$deb" | grep -q ./usr/lib/falco/.venv/bin/python
+      - name: Install the .deb
+        run: |
+          deb="$(ls "$RUNNER_TEMP"/deb/falco_*.deb)"
+          sudo apt-get install -y "$deb"
+          test -x /usr/bin/falco
+          # The installed interpreter must find the app and every system module
+          # the package declares. A missing dependency fails here, not for a
+          # user launching it from their menu.
+          /usr/lib/falco/.venv/bin/python -c 'import localdictation, gi, dbus, evdev, sounddevice, toml; print(localdictation.__version__)'
+      - name: Remove the .deb
+        run: sudo apt-get remove -y falco
 
   website:
     runs-on: ubuntu-latest

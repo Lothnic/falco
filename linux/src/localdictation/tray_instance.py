@@ -42,7 +42,7 @@ def _give_way_or_exit(lockfile):
     shows its menu and this one exits; one that won't may be quitting (it
     refuses to while it waits for its dictation service to finish typing),
     so its lock is waited for before saying it runs."""
-    from .service_launcher import QUIT_WAIT_S, pre_rename_tray_pids
+    from .service_launcher import QUIT_WAIT_S
     old_trays = []
     if old_trays:
         logger.info(f"Stopping the pre-0.15.0 tray (PID {old_trays}) so TuxTalk can start")

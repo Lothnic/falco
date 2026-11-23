@@ -19,7 +19,7 @@ logger = setup_logger(__name__)
 _WIDTH = 480
 
 
-def _open_preferences():
+def _open_preferences(tab=None):
     """Launch the Preferences window as its own process, the same way the
     tray does (service_launcher.launch_preferences).
 
@@ -28,7 +28,7 @@ def _open_preferences():
     """
     try:
         from .service_launcher import launch_preferences
-        launch_preferences()
+        launch_preferences(tab)
     except Exception as e:
         logger.warning(f"Could not open Preferences: {e}")
 
@@ -47,7 +47,7 @@ def _ready_tips(is_flatpak):
         tips.append("📋 Typed into the wrong window? Press "
                     f"<b>{GLib.markup_escape_text(cfg.paste_last_hotkey)}</b> to type it again")
     where = GLib.markup_escape_text(extension_helper.menu_location())
-    tips.append(f"⚙️ Open the TuxTalk menu ({where}) to change these keys and more")
+    tips.append(f"⚙️ Open the Falco menu ({where}) to change these keys and more")
     # Onboarding turns on launch at login (appimage_copy._start_at_login) and
     # records it only once its file is written: say so, and where to turn it off.
     if getattr(cfg, "launch_at_login", False):
@@ -204,7 +204,7 @@ def _button(label, width, on_click, main=False):
     return button
 
 
-def _buttons(dialog, needs_restart, model_ready=True):
+def _buttons(dialog, needs_restart, check=None):
     """(box, main button). When a restart is owed, the choice IS restart now
     or later: dictation won't work until the reboot, so "Start Using
     Falco!" would mislead. Otherwise start dictating, or adjust settings."""
@@ -224,15 +224,13 @@ def _buttons(dialog, needs_restart, model_ready=True):
         def open_preferences(_button):
             # Close this dialog too — leaving it floating above Preferences would
             # sit on top of the window the user just asked for.
-            _open_preferences()
+            _open_preferences(check.preferences_tab if check is not None else None)
             dialog.response(Gtk.ResponseType.OK)
         # Setup is finished here, so it is safe to send the user to Preferences.
         left = _button("Open Preferences", 150, open_preferences)
         left.set_tooltip_text(
             "Adjust models, hotkeys, punctuation, the recording indicator and more")
-        # Without a model there's nothing to start using yet.
-        main = _button("Start Using Falco!" if model_ready else "Continue", 180, close,
-                       main=True)
+        main = _button("Finish setup", 180, close, main=True)
     button_box.pack_start(left, False, False, 0)
     button_box.pack_start(main, False, False, 0)
     return button_box, main
@@ -262,7 +260,7 @@ def _text_area(content):
 
 def show_setup_complete_dialog(appimage_installed=False, launcher_created=False,
                                needs_restart=False, extension_installed=False,
-                               model_ready=True):
+                               model_ready=True, start_check=None, check_ready=None):
     """
     Show the final setup complete dialog after model download.
     Tells the user they're ready to start dictating.
@@ -280,7 +278,7 @@ def show_setup_complete_dialog(appimage_installed=False, launcher_created=False,
             "ready to use".
     """
     from .ui_style import fit_dialog_to_screen
-    dialog = Gtk.Dialog(title="Falco - Ready!" if model_ready else "Falco - Setup Complete")
+    dialog = Gtk.Dialog(title="Falco Setup")
     dialog.set_border_width(0)
     fit_dialog_to_screen(dialog, _WIDTH, -1)  # auto-height, resizable; capped when realized
     dialog.set_position(Gtk.WindowPosition.CENTER)
@@ -289,24 +287,28 @@ def show_setup_complete_dialog(appimage_installed=False, launcher_created=False,
     content.set_spacing(0)
     scrolled, vbox, text_cap = _text_area(content)
 
-    vbox.pack_start(_centered('<span size="x-large"><b>Setup Complete!</b></span>'),
+    vbox.pack_start(_centered('<span size="x-large"><b>Setup complete</b></span>'),
                     False, False, 0)
-    vbox.pack_start(_centered('Falco is ready to use.' if model_ready else
-                              '<span color="#FF9800"><b>The speech model isn\'t downloaded '
-                              'yet.</b>\nTuxTalk asks to download it when it starts.</span>',
-                              top=4), False, False, 0)
+    if not model_ready:
+        vbox.pack_start(_centered("Falco will offer to download the speech model when it starts.",
+                                  top=4), False, False, 0)
     _install_summary(vbox, appimage_installed, launcher_created)
     sep = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
     sep.set_margin_top(10)
     sep.set_margin_bottom(8)
     vbox.pack_start(sep, False, False, 0)
     is_flatpak = bool(os.environ.get("FLATPAK_ID"))
-    _how_it_works(vbox, is_flatpak)
+    check = None
+    if model_ready and not needs_restart and start_check is not None and check_ready is not None:
+        from .setup_dictation_check import DictationCheck
+        check = DictationCheck(vbox, is_flatpak, check_ready)
+    else:
+        _how_it_works(vbox, is_flatpak)
     _tips(vbox, is_flatpak)
     _notes(vbox, extension_installed)
     if needs_restart:
         _restart_reminder(vbox)
-    button_box, main_button = _buttons(dialog, needs_restart, model_ready)
+    button_box, main_button = _buttons(dialog, needs_restart, check)
 
     # GTK sizes the scroller at its narrowest width, where the wrapped lines
     # are taller, and comes up short: ask for their height at the window's
@@ -320,8 +322,15 @@ def show_setup_complete_dialog(appimage_installed=False, launcher_created=False,
     # Left to GTK, the focus went to the Discussions link in the scrolling
     # part, and on a short screen the window opened scrolled down to it with
     # "Setup Complete!" cut off, as Welcome did.
-    dialog.set_focus(main_button)
+    dialog.set_focus(check.entry if check is not None else main_button)
 
     dialog.show_all()
-    dialog.run()
-    dialog.destroy()
+    try:
+        if check is not None:
+            start_check(check)
+            check.start()
+        dialog.run()
+    finally:
+        if check is not None:
+            check.stop()
+        dialog.destroy()

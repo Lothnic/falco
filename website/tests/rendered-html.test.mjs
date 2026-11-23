@@ -13,6 +13,8 @@ test("renders the Falco landing page", async () => {
   assert.match(html, /Your voice never leaves the room\./);
   assert.match(html, /Six things it does/);
   assert.match(html, /Parakeet Ultra v3/);
+  assert.match(html, /About 670 MB for Parakeet Ultra v3/);
+  assert.match(html, /About 1 GB extra, including its engine/);
   assert.match(html, /Optional local cleanup/);
   assert.match(html, /curl -fsSL https:\/\/falco\.lothnic\.dev\/install\.sh \| bash/);
   assert.match(html, /Copy quick install command/);

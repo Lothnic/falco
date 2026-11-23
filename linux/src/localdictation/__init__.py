@@ -1,15 +1,14 @@
 """TuxTalk - voice dictation for Linux"""
 
-# First of all: move a TalkType install's folders to TuxTalk's names, before
-# any module (the logger above all) creates the new ones. What was moved, or
-# couldn't be, is logged by the tray. See rename_migration.py.
-from . import rename_migration as _rename_migration
-MIGRATION_LOG = []  # This fork must never migrate an existing TuxTalk install.
+# The upstream TalkType->TuxTalk folder migration (rename_migration.py) is
+# imported on demand by the tray and the uninstaller, not here: this fork
+# must never migrate an existing TuxTalk install, so nothing runs at import.
+MIGRATION_LOG = []
 
 import ctypes.util  # noqa: E402
 import os  # noqa: E402
 
-__version__ = "0.1.0"
+__version__ = "2.0.0"
 
 # Where the AppImage (and the .deb/.rpm made from it) keeps its own PortAudio:
 # <root>/usr/src/tuxtalk/ -> <root>/usr/lib/portaudio/. In a dev checkout or

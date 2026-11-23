@@ -58,11 +58,11 @@ def how_it_updates_text(install_type, owner=installation.system_package):
         pkg = owner()
         if pkg:
             return f"Installed from the AUR: update with your AUR helper (yay -S {pkg})."
-        return "Installed by your system's package manager: update TuxTalk with it."
+        return "Installed by your system's package manager: update Falco with it."
     if install_type == "source" and not source_install.in_venv():
         return "Installed from source: update it the way you installed it."
     return {
-        "appimage": "Updates install and TuxTalk restarts by itself.",
+        "appimage": "Updates install and Falco restarts by itself.",
         "rpm": package, "deb": package, "package": package,
         "source": ("Installed from source: Check for Updates shows the command that "
                    "installs the new version."),
@@ -129,7 +129,7 @@ class UpdatesTab(Tab):
         heading = _indented(subheading("Earlier settings"))
         heading.set_margin_top(10)
         vbox.pack_start(heading, False, False, 0)
-        vbox.pack_start(_dim(f"Your backups in the backup folder, and the copies TuxTalk "
+        vbox.pack_start(_dim(f"Your backups in the backup folder, and the copies Falco "
                              f"saves by itself when it starts (the last "
                              f"{settings_backup.KEEP}). Go back to one if a change or an "
                              f"update went wrong."), False, False, 0)
@@ -186,7 +186,7 @@ class UpdatesTab(Tab):
             chooser.set_current_folder(folder)
         if not folder_only:
             zips = Gtk.FileFilter()
-            zips.set_name("TuxTalk backups (*.zip)")
+            zips.set_name("Falco backups (*.zip)")
             zips.add_pattern("*.zip")
             chooser.add_filter(zips)
         if save_name:
@@ -215,7 +215,7 @@ class UpdatesTab(Tab):
     def _on_change_backup_folder_clicked(self, _button):
         """Browse to a folder; saved straight away, like Save Backup itself."""
         from .settings_backup import set_backup_folder
-        folder = self._pick_file("Choose the Folder for TuxTalk Backups", folder_only=True)
+        folder = self._pick_file("Choose the Folder for Falco Backups", folder_only=True)
         if not folder:
             return
         try:
@@ -231,7 +231,7 @@ class UpdatesTab(Tab):
         .zip, whose folder becomes the backup folder."""
         from . import settings_backup
         name = settings_backup.suggested_name()
-        path = self._pick_file("Save TuxTalk Backup", save_name=name)
+        path = self._pick_file("Save Falco Backup", save_name=name)
         if not path:
             return
         if not path.lower().endswith(".zip"):
@@ -263,7 +263,7 @@ class UpdatesTab(Tab):
         """Load Backup…: after saying when and by which version it was made,
         and asking, the backup replaces the settings (_restore_backup)."""
         from . import settings_backup
-        path = self._pick_file("Load TuxTalk Backup")
+        path = self._pick_file("Load Falco Backup")
         if not path:
             return
         try:
@@ -279,7 +279,7 @@ class UpdatesTab(Tab):
         removing = settings_backup.removal_note(backup)
         if show_message(
                 self.window, Gtk.MessageType.QUESTION, "Load these settings?",
-                f"This backup was made {made} by TuxTalk "
+                f"This backup was made {made} by Falco "
                 f"{backup.version or '(unknown version)'}.\n\n"
                 "Its settings, and the snippets and voice commands and Your Words it has, "
                 "replace yours. "
@@ -346,12 +346,12 @@ class UpdatesTab(Tab):
         vbox.pack_start(_header("🔄 Updates"), False, False, 0)
         self._build_version_row(vbox)
         self._build_update_status(vbox)
-        auto_check = Gtk.CheckButton(label="Check automatically when TuxTalk starts")
+        auto_check = Gtk.CheckButton(label="Check automatically when Falco starts")
         auto_check.set_active(self.config.get("auto_check_updates", True))
         auto_check.connect("toggled",
                            lambda b: self.update_config("auto_check_updates", b.get_active()))
         auto_check.set_tooltip_text(
-            "When enabled, TuxTalk will check for updates once per day when it starts.\n"
+            "When enabled, Falco will check for updates once per day when it starts.\n"
             "If an update is found, you'll be notified and this tab will open.")
         vbox.pack_start(_indented(auto_check), False, False, 0)
         install_type = installation.get_install_type()
@@ -364,19 +364,19 @@ class UpdatesTab(Tab):
         if install_type != "flatpak":
             vbox.pack_start(_separator(), False, False, 0)
             row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-            row.pack_start(_dim("Remove TuxTalk and everything it set up on this computer."),
+            row.pack_start(_dim("Remove Falco and everything it set up on this computer."),
                            True, True, 0)
-            uninstall_btn = Gtk.Button(label="Uninstall TuxTalk\u2026")
+            uninstall_btn = Gtk.Button(label="Uninstall Falco\u2026")
             uninstall_btn.connect("clicked", self._on_uninstall_clicked)
             row.pack_end(uninstall_btn, False, False, 0)
             vbox.pack_start(row, False, False, 0)
         return vbox
 
     def _build_version_row(self, vbox):
-        """TuxTalk's version, and the extension's on GNOME, with Check for Updates."""
+        """Falco's version, and the extension's on GNOME, with Check for Updates."""
         from . import update_checker
         row = _indented(Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10))
-        versions = f"TuxTalk {update_checker.get_current_version()}"
+        versions = f"Falco {update_checker.get_current_version()}"
         if is_gnome():
             ext_version = update_checker.get_extension_version()
             versions += (f"  ·  GNOME extension {ext_version}" if ext_version
@@ -405,7 +405,7 @@ class UpdatesTab(Tab):
         self.download_btn, self.view_release_btn, self.update_extension_btn = (
             self._action_button(label, handler, tip) for label, handler, tip in (
                 ("Download & Install", self._on_download_update_clicked,
-                 "Download the update and automatically install & restart TuxTalk"),
+                 "Download the update and automatically install & restart Falco"),
                 ("View on GitHub", self._on_view_release_clicked, None),
                 # Only for GNOME, with the extension installed.
                 ("Update Extension", self._on_update_extension_clicked, None)))
@@ -457,7 +457,7 @@ class UpdatesTab(Tab):
         return answer == "discard"
 
     def _on_check_updates_clicked(self, button):
-        """Check GitHub for a newer TuxTalk, off the GTK thread."""
+        """Check GitHub for a newer Falco, off the GTK thread."""
         from . import update_checker
 
         # Update status and hide action buttons. The status box is hidden
@@ -507,12 +507,12 @@ class UpdatesTab(Tab):
         if has_update:
             status_lines = [
                 "<span color='#4CAF50'><b>Update available!</b></span>",
-                f"TuxTalk: {current} → <b>{esc(str(latest))}</b>"
+                f"Falco: {current} → <b>{esc(str(latest))}</b>"
             ]
         else:
             status_lines = [
                 "<span color='#4CAF50'>You're up to date!</span>",
-                f"TuxTalk {current} is the latest version."
+                f"Falco {current} is the latest version."
             ]
 
         if ext_current is not None:
@@ -589,12 +589,13 @@ class UpdatesTab(Tab):
         url = self._current_release.get("appimage_url")
         if not url:
             return
+        from .installation import APPIMAGE_PATH
         response = show_message(self.window,
                                 Gtk.MessageType.QUESTION,
                                 "Download & Install Update?",
-                                "TuxTalk will:\n"
+                                "Falco will:\n"
                                 "1. Download the new version\n"
-                                "2. Install it to ~/AppImages/TuxTalk.AppImage\n"
+                                f"2. Install it to {APPIMAGE_PATH}\n"
                                 "3. Restart automatically\n\n"
                                 "Any unsaved preferences changes will be saved first.",
                                 buttons=Gtk.ButtonsType.YES_NO)

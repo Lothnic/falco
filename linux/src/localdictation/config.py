@@ -86,6 +86,13 @@ VALID_MODELS = {
 # vulkan: any GPU through whisper.cpp (whisper_vulkan.py)
 VALID_DEVICES = {"cpu", "cuda", "vulkan"}
 VALID_MODES = {"hold", "toggle"}
+REFINER_MODES = {
+    "minimal": "Minimal",
+    "casual": "Casual",
+    "formal": "Formal",
+    "prompt": "AI prompt",
+    "auto": "Match the focused app",
+}
 
 # The dictation keys (hotkey, toggle_hotkey), by the name the settings save and
 # Preferences and Help show, with the key's evdev name. Many laptops and
@@ -231,6 +238,11 @@ class Settings:
     auto_timeout_enabled: bool = field(default_factory=lambda: has_battery())
     auto_timeout_minutes: int = 5       # minutes of inactivity before auto-stop
     recording_indicator: bool = True    # show visual recording indicator near cursor
+    rune_live_preview: bool = False
+    # Hear a dictation in phrases while the speaker talks, so the release only
+    # transcribes the last one (streaming.py). Off by default until it has run
+    # on real microphones across desktops: the whole-file pass is the known path.
+    streaming_dictation: bool = False
     # screen position: center, top-left, top-center, top-right, bottom-left, bottom-center,
     # bottom-right, left-center, right-center
     indicator_position: str = "center"
@@ -262,6 +274,7 @@ class Settings:
     remove_fillers: bool = False
     # fix "3, no wait, 4" with a local AI model (ai_download.py downloads it)
     ai_corrections: bool = True
+    refiner_mode: str = "minimal"
     # Shift + dictation key rewrites the selected text with the same AI model
     voice_editing: bool = False
     # toggle recordings stop by themselves when you stop talking (silence.py)
@@ -341,6 +354,9 @@ def _validation_problems(s: Settings) -> list[tuple[str, str]]:
     if s.mode.lower() not in VALID_MODES:
         problems.append(("mode", f"Invalid mode '{s.mode}'. Must be 'hold' or 'toggle'"))
 
+    if s.refiner_mode.lower() not in REFINER_MODES:
+        problems.append(("refiner_mode", "Invalid Phonon refiner writing mode"))
+
     if s.injection_mode.lower() not in VALID_INJECTION_MODES:
         problems.append(("injection_mode", f"Invalid injection_mode '{s.injection_mode}'. "
                                            "Must be 'type', 'paste', or 'auto'"))
@@ -405,7 +421,7 @@ def validate_config(s: Settings) -> None:
                           fields=[name for name, _ in problems])
 
 
-_CASE_FREE_CHOICES = ("device", "mode", "injection_mode", "indicator_position",
+_CASE_FREE_CHOICES = ("device", "mode", "injection_mode", "indicator_position", "refiner_mode",
                       "indicator_size", "indicator_style", "indicator_color_mode")
 
 
@@ -904,6 +920,8 @@ LIVE_APPLIED_KEYS = {
     "indicator_color",
     "indicator_sensitivity",
     "indicator_follows_window",
+    "rune_live_preview",
+    "streaming_dictation",
 
     # The dictation service never reads these at all — they belong to
     # Preferences and the tray. Listing them stops a "Launch at login" toggle
@@ -930,6 +948,7 @@ LIVE_APPLIED_KEYS = {
     "press_enter_after",
     "press_enter_delay",
     "ai_corrections",
+    "refiner_mode",
     "voice_editing",
     # Hands-free auto-stop; read when each toggle recording starts.
     "auto_stop_silence",

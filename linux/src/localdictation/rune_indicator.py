@@ -1,9 +1,10 @@
 """Optional Rune recording overlay, with the existing indicator as a fallback.
 
-The Rust process owns only presentation. Audio and dictation remain in the
-Python service; at most a normalized meter level crosses this pipe.
+The Rust process owns only presentation. The pipe carries meter levels
+and, when requested, a temporary draft for the on-screen preview.
 """
 import atexit
+import json
 import os
 import queue
 import subprocess
@@ -122,8 +123,19 @@ class RuneIndicator:
         if self._send("show"):
             GLib.timeout_add(100, self._check_availability, generation)
             GLib.timeout_add(2500, self._fallback_after_timeout, generation)
-        else:
-            self._restore_fallback_if_current(generation)
+            return generation
+        self._restore_fallback_if_current(generation)
+        return None
+
+    def preview_available(self, generation):
+        with self._lock:
+            return (self._recording and generation == self._generation
+                    == self._available_generation and self.process.poll() is None)
+
+    def set_preview(self, generation, draft):
+        with self._lock:
+            if self._recording and generation == self._generation == self._available_generation:
+                self._send("preview " + json.dumps(draft, ensure_ascii=False))
 
     def start_recording(self):
         # The fallback starts only if Rune is unavailable.

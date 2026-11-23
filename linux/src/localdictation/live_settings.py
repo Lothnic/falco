@@ -77,6 +77,11 @@ auto_languages = ()
 # are on. The engine runs while either is; each checks its own flag first.
 ai_engine = None
 ai_corrections = False
+refiner_mode = "minimal"
+rune_live_preview = False
+# Hear a dictation in phrases while the speaker talks (streaming.py), so the
+# release only transcribes the last one.
+streaming_dictation = False
 voice_editing = False
 
 # Seconds of silence that end a toggle recording (0 = auto-stop off).
@@ -101,6 +106,8 @@ def apply(cfg):
     global chunk_pause_seconds, chunk_cfg, chunk_context_marks
     global log_transcripts, usage_stats, restore_clipboard, pause_media, duck_audio
     global paste_last_hotkey
+    global refiner_mode, rune_live_preview
+    global streaming_dictation
     log_transcripts = cfg.log_transcripts
     usage_stats = cfg.usage_stats
     restore_clipboard = cfg.restore_clipboard
@@ -135,6 +142,9 @@ def apply(cfg):
     from .recommend import effective_language
     numbers_language = effective_language(cfg)
     ai_corrections = bool(cfg.ai_corrections)
+    refiner_mode = cfg.refiner_mode
+    rune_live_preview = cfg.rune_live_preview
+    streaming_dictation = bool(cfg.streaming_dictation)
     voice_editing = bool(cfg.voice_editing)
     want_ai = ai_corrections or voice_editing
     if want_ai and ai_engine is None:

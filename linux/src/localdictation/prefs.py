@@ -377,7 +377,8 @@ class PreferencesWindow:
 
         self.stats_tab = StatsTab(self)
         self.updates_tab = UpdatesTab(self)
-        for tab, label in ((self.stats_tab, "Stats"),):
+        for tab, label in ((self.stats_tab, "Stats"),
+                           (self.updates_tab, "Updates & Backup")):
             add(tab, label, self._scrollable_tab(tab.build()))
         # Connected once every tab is built: appending the first page shows it.
         notebook.connect("switch-page", self.on_tab_switched)
@@ -776,6 +777,11 @@ class PreferencesWindow:
         page.get_vadjustment().set_value(0)     # each page is a _scrollable_tab
         if notebook.get_tab_label_text(page) == "Stats":
             self.stats_tab.refresh()
+        elif notebook.get_tab_label_text(page) == "Updates & Backup":
+            # Backup files and automatic copies appear while this window stays
+            # open (Save Backup, an update's restart): refill them on each visit.
+            self.updates_tab._fill_restore_list()
+            self.updates_tab._show_last_backup()
         self._stop_tests(shown=page)
 
     def _save_and_download(self):

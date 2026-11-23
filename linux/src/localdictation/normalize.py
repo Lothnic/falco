@@ -642,10 +642,10 @@ def _lines(text: str) -> list:
     return text.replace(LINE_BREAK, "\n").split("\n")
 
 
-def _finish_line(line: str, auto_period: bool, last: bool) -> str:
-    """One line with a capital at its start and after each sentence ender,
-    and, with *auto_period*, a full stop at its end."""
-    line = _cap_first(line)
+def _finish_line(line: str, auto_period: bool, last: bool, sentence_case: bool) -> str:
+    """Apply the requested case and punctuation to one line."""
+    if sentence_case:
+        line = _cap_first(line)
     if auto_period:
         # A comma before a line break was said on purpose ("Dear John,"), so
         # only a comma that ends the whole utterance becomes the full stop.
@@ -653,14 +653,16 @@ def _finish_line(line: str, auto_period: bool, last: bool) -> str:
             line = _RE_TRAILING_COMMA.sub(".", line)
         if line.strip() and not _ends_punctuated(line) and not line.rstrip().endswith(","):
             line = line.rstrip() + "."
-    return _RE_CAP_AFTER_ENDER.sub(lambda m: m.group(1) + m.group(2).upper(), line)
+    if sentence_case:
+        line = _RE_CAP_AFTER_ENDER.sub(lambda m: m.group(1) + m.group(2).upper(), line)
+    return line
 
 
-def _capitalize_and_end_lines(text: str, auto_period: bool) -> str:
+def _capitalize_and_end_lines(text: str, auto_period: bool, sentence_case: bool) -> str:
     """Every line finished by _finish_line. Newlines come back as dictated
     line breaks."""
     lines = _lines(text)
-    return LINE_BREAK.join(_finish_line(line, auto_period, i == len(lines) - 1)
+    return LINE_BREAK.join(_finish_line(line, auto_period, i == len(lines) - 1, sentence_case)
                            for i, line in enumerate(lines))
 
 
@@ -678,7 +680,7 @@ def _finish_addresses(text: str) -> str:
     return _fix_email_spacing(text)
 
 
-def normalize_text(text: str, auto_period: bool = True) -> str:
+def normalize_text(text: str, auto_period: bool = True, *, sentence_case: bool = True) -> str:
     """Spoken punctuation -> symbols; tidy punctuation; auto-capitalize; keep newlines/tabs.
 
     auto_period mirrors the "Ensure period at end of sentences" preference.
@@ -704,13 +706,14 @@ def normalize_text(text: str, auto_period: bool = True) -> str:
     # Before the capitals, so they see "I'm" already right.
     text = _RE_STANDALONE_I.sub("I", text)
     text = _restore_quoted(text, quoted_sections)
-    text = _capitalize_and_end_lines(text, auto_period)
+    text = _capitalize_and_end_lines(text, auto_period, sentence_case)
     text = _RE_PUNCT_OUTSIDE_QUOTE.sub(r"\2" + "\u201d", text)
     text = _restore_protected_words(text)
     # The capitals ran while a protected word was a placeholder (already a
     # capital), so a line that starts with one ("return to sender") gets
     # its capital now.
-    text = LINE_BREAK.join(_cap_first(line) for line in _lines(text))
+    if sentence_case:
+        text = LINE_BREAK.join(_cap_first(line) for line in _lines(text))
     return _finish_addresses(text)
 
 

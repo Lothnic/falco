@@ -8,7 +8,8 @@
 set -euo pipefail
 
 REPO="Lothnic/falco"
-REF="${FALCO_REF:-main}"
+REF="${FALCO_REF-}"
+REF_IS_TAG=0
 ASSUME_YES=0
 SKIP_DEPS=0
 WITH_RUNE=0
@@ -33,7 +34,7 @@ Options:
   -y, --yes        Install required system packages without asking.
       --no-deps    Skip system packages; install them yourself first.
       --with-rune  Build the optional Rune dashboard and overlay.
-      --ref REF    Install a branch, tag, or commit (default: main).
+      --ref REF    Install a branch, tag, or commit (default: latest release).
   -h, --help       Show this help.
 
 Environment:
@@ -56,10 +57,14 @@ parse_args() {
             --with-rune) WITH_RUNE=1 ;;
             --ref)
                 (($# >= 2)) || die "--ref needs a value"
+                [[ -n "$2" ]] || die "--ref needs a value"
                 REF="$2"
                 shift
                 ;;
-            --ref=*) REF="${1#*=}" ;;
+            --ref=*)
+                REF="${1#*=}"
+                [[ -n "$REF" ]] || die "--ref needs a value"
+                ;;
             -h | --help)
                 usage
                 exit 0
@@ -69,9 +74,14 @@ parse_args() {
         shift
     done
 
-    [[ "$REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/~-]*$ ]] ||
-        die "invalid --ref value: $REF"
-    [[ "$REF" != *..* ]] || die "invalid --ref value: $REF"
+    if [[ -n "$REF" ]]; then
+        validate_ref
+    fi
+}
+
+validate_ref() {
+    [[ "$REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/~-]*$ && "$REF" != *..* ]] ||
+        die "invalid ref: $REF"
 }
 
 require_user() {
@@ -82,19 +92,6 @@ require_user() {
         command -v "$command" >/dev/null 2>&1 ||
             die "$command is required but was not found."
     done
-}
-
-check_existing() {
-    local install_base="${PHONON_INSTALL_BASE:-$HOME/.local/share/falco-app}"
-    local bin_dir="${PHONON_BIN_DIR:-$HOME/.local/bin}"
-    local desktop_dir="${PHONON_DESKTOP_DIR:-$HOME/.local/share/applications}"
-
-    if [[ -e "$install_base/releases/0.1.0" || -e "$bin_dir/falco" ||
-        -L "$bin_dir/falco" || -e "$desktop_dir/falco.desktop" ]]; then
-        die "Falco already appears to be installed.
-Remove $bin_dir/falco, $desktop_dir/falco.desktop, and $install_base
-before reinstalling."
-    fi
 }
 
 apt_missing_packages() {
@@ -219,12 +216,35 @@ and try again."
     fi
 }
 
-download_source() {
-    TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/falco-install.XXXXXX")"
-    trap 'rm -rf -- "$TMP_DIR"' EXIT
+resolve_ref() {
+    [[ -z "$REF" ]] || return 0
+    local status metadata="$TMP_DIR/release.json"
+    status="$(curl -sSL --proto '=https' --tlsv1.2 --retry 3 --connect-timeout 15 \
+        -o "$metadata" -w '%{http_code}' "https://api.github.com/repos/$REPO/releases/latest")" ||
+        die "Could not look up the latest Falco release. Use --ref to select a version."
+    case "$status" in
+        200)
+            REF="$(/usr/bin/python3 -c 'import json, sys; print(json.load(sys.stdin)["tag_name"])' < "$metadata")" ||
+                die "Could not read the latest Falco release tag. Use --ref to select a version."
+            validate_ref
+            REF_IS_TAG=1
+            ;;
+        404)
+            REF="main"
+            say "Falco has no published release yet. Installing the preview from main."
+            ;;
+        *)
+            die "Could not look up the latest Falco release (HTTP $status). Use --ref to select a version."
+            ;;
+    esac
+}
 
+download_source() {
     local archive="$TMP_DIR/source.tar.gz"
     local url="https://github.com/$REPO/archive/$REF.tar.gz"
+    if ((REF_IS_TAG)); then
+        url="https://github.com/$REPO/archive/refs/tags/$REF.tar.gz"
+    fi
 
     say "Downloading Falco ($REF)…"
     curl -fL --proto '=https' --tlsv1.2 --retry 3 --connect-timeout 15 \
@@ -256,30 +276,22 @@ Install Rust from https://rustup.rs, or rerun without --with-rune."
 }
 
 run_installer() {
-    local bin_dir="${PHONON_BIN_DIR:-$HOME/.local/bin}"
-
     say "Installing Falco…"
     (cd "$SOURCE_DIR" && bash linux/install.sh) </dev/null
-
-    say ""
-    say "Falco is installed."
-    say "Start it from your application menu, or run:"
-    say "  $bin_dir/falco"
-    say ""
-    say "The first run guides you through permissions, a dictation key, and a"
-    say "speech model download of about 1.7 GB."
 }
 
 main() {
     parse_args "$@"
     require_user
-    check_existing
     if ((SKIP_DEPS)); then
         say "Skipping system packages (--no-deps)."
     else
         install_deps
     fi
     check_python
+    TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/falco-install.XXXXXX")"
+    trap 'rm -rf -- "$TMP_DIR"' EXIT
+    resolve_ref
     download_source
     build_rune
     run_installer
