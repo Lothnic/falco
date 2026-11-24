@@ -26,6 +26,13 @@ def install_env(tmp_path):
                PHONON_INSTALL_BASE=str(tmp_path / "app releases"),
                PHONON_BIN_DIR=str(tmp_path / "my bin"),
                PHONON_DESKTOP_DIR=str(tmp_path / "desktop"))
+    import tomllib
+    version = tomllib.loads((ROOT / "linux/pyproject.toml").read_text())["tool"]["poetry"]["version"]
+    cache = Path(env["PHONON_INSTALL_BASE"]) / "rune" / version
+    cache.mkdir(parents=True)
+    (cache / "VERSION").write_text(version)
+    for name in ("phonon-window", "phonon-overlay"):
+        executable(cache / name, "#!/bin/sh\nexit 0\n")
     return env
 
 

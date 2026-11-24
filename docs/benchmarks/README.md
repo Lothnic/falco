@@ -1,6 +1,6 @@
 # Falco 2.5 Linux refiner benchmark
 
-Falco 2.5.0's optional DFlash2 drafter reduced total refiner-request time by
+The 2.5 refiner engine (also included in 2.5.1) with its optional DFlash2 drafter reduced total refiner-request time by
 **32% (1.47× faster)** across this initial local test. Gains increased with
 output length in the four prompts measured. The longest output, 60 tokens,
 finished **46.5% sooner (1.87× faster)**. Very short output changed little.

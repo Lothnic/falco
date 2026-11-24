@@ -33,7 +33,7 @@ Usage: install.sh [options]
 Options:
   -y, --yes        Install required system packages without asking.
       --no-deps    Skip system packages; install them yourself first.
-      --with-rune  Build the optional Rune dashboard and overlay.
+      --with-rune  Build Rune locally instead of using the matching release bundle.
       --ref REF    Install a branch, tag, or commit (default: latest release).
   -h, --help       Show this help.
 
@@ -272,6 +272,7 @@ Install Rust from https://rustup.rs, or rerun without --with-rune."
         cargo build --release --locked \
             --manifest-path linux/rune-overlay/Cargo.toml \
             --target-dir linux/rune-overlay/target
+        sed -n 's/^version = "\([0-9.]*\)"$/\1/p' linux/pyproject.toml > linux/rune-overlay/target/release/VERSION
     ) </dev/null || die "The Rune build failed. Rerun without --with-rune for the GTK tray."
 }
 

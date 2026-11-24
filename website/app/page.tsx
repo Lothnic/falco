@@ -1,3 +1,4 @@
+import Image from "next/image";
 import CopyCommand from "./CopyCommand";
 import DictationDemo from "./DictationDemo";
 import ThemeToggle from "./ThemeToggle";
@@ -65,7 +66,7 @@ const capabilities = [
   },
   {
     title: "Rune dashboard",
-    body: "Overview, recent dictations, your words, and settings, plus a sound-responsive recording overlay.",
+    body: "One dark slate-and-mint window for settings, pronunciations, snippets, usage, updates and backups. Tray actions bring the same window forward.",
     meta: "Experimental · Rust",
   },
   {
@@ -113,7 +114,7 @@ const processRows = [
 const specs = [
   ["Desktop", "GNOME or KDE · Wayland or X11"],
   ["Runtime", "Python 3.10–3.14 · GTK 3"],
-  ["Optional UI", "Rust 1.99.1+ for Rune"],
+  ["Rune UI", "Included on Linux x86_64 · glibc 2.39+"],
   ["Speech model", "About 670 MB for Parakeet Ultra v3"],
   ["Optional refiner", "About 1 GB extra, including its engine"],
   ["Optional acceleration", "215 MB extra for the Phonon drafter"],
@@ -325,60 +326,7 @@ function InsertArt() {
 }
 
 function OverlayArt() {
-  return (
-    <svg className="overlay-art" viewBox="0 0 460 552" role="img" aria-labelledby="overlay-title">
-      <title id="overlay-title">A drawing of the Rune dashboard with the recording overlay</title>
-      <g className="ov-screen">
-        <rect x="30" y="24" width="400" height="270" />
-        <path d="M30 52h400" />
-        <circle cx="44" cy="38" r="2" />
-        <circle cx="52" cy="38" r="2" />
-        <circle cx="60" cy="38" r="2" />
-        <path className="d-faint" d="M44 66v212M44 66h88M44 132h88M44 198h88" />
-        <rect x="54" y="76" width="48" height="10" />
-        <rect x="54" y="142" width="38" height="8" />
-        <rect x="54" y="208" width="44" height="8" />
-        <rect x="146" y="70" width="260" height="76" />
-        <path className="d-faint" d="M156 88h80M156 102h124M156 124h52M292 88h42M292 102h62" />
-        <rect x="146" y="160" width="124" height="88" />
-        <rect x="282" y="160" width="124" height="88" />
-        <path className="d-faint" d="M156 178h52M156 192h72M156 214h44M292 178h52M292 192h72M292 214h44" />
-        <path className="ov-baseline" d="M146 263h260" />
-      </g>
-      <g className="ov-overlay">
-        <rect x="82" y="326" width="296" height="62" rx="8" />
-        <g className="ov-wave">
-          <path d="M110 358v-8M122 360v-14M134 356v-4M146 361v-22M158 357v-8M170 360v-18M182 355v-4M194 361v-24M206 357v-10M218 360v-16M230 356v-6M242 361v-20M254 357v-12M266 360v-18M278 356v-4M290 361v-22M302 357v-8M314 360v-14M326 355v-4M338 361v-20M350 357v-10" />
-        </g>
-        <text x="110" y="379">
-          LISTENING
-        </text>
-        <text x="362" y="379" textAnchor="end">
-          00:04.2
-        </text>
-      </g>
-      <g className="ov-dim">
-        <path d="M82 312v-16h296v16M82 304h10M368 304h10" />
-        <text x="230" y="299" textAnchor="middle">
-          RECORDING OVERLAY · 296 PX
-        </text>
-        <path d="M30 430h400M30 422v16M430 422v16" />
-        <text x="230" y="452" textAnchor="middle">
-          RUNE DASHBOARD / OVERLAY
-        </text>
-      </g>
-      <g className="kc-fine">
-        <path d="M378 326 410 306" />
-        <text x="414" y="303">
-          DETAIL A
-        </text>
-        <path d="M30 470v46h400v-46" />
-        <text x="230" y="500" textAnchor="middle">
-          EXPERIMENTAL · RUST SIDECAR
-        </text>
-      </g>
-    </svg>
-  );
+  return <Image src="/images/rune-2.5.1.png" alt="Falco 2.5.1 settings in the unified dark Rune window, with example shortcut values" width={2200} height={1560} style={{ width: "100%", height: "auto" }} />;
 }
 
 function NetworkArt() {
@@ -631,8 +579,8 @@ export default function Home() {
                 </div>
                 <OverlayArt />
                 <div className="cap-art-foot">
-                  <span>Recording overlay</span>
-                  <span>Experimental</span>
+                  <span>Unified settings</span>
+                  <span>Rune 2.5.1</span>
                 </div>
               </aside>
             </div>
@@ -781,8 +729,9 @@ export default function Home() {
                   note="Installs under ~/.local/share/falco-app and adds ~/.local/bin/falco. Rerun the installer to upgrade."
                 />
                 <p className="install-note">
-                  For the Rune dashboard and recording overlay, use{" "}
-                  <code>bash -s -- --with-rune</code> after the pipe in the quick install command.
+                  The matching Rune dashboard and overlay are included on Linux x86_64.
+                  To build locally with Rust 1.99.1+, add <code>bash -s -- --with-rune</code>
+                  {" "}after the pipe.
                 </p>
               </div>
 

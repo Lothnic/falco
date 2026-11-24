@@ -122,6 +122,10 @@ fn spec() -> AppSpec<Hud> {
     }
 }
 fn main() {
+    if std::env::args().any(|a| a == "--version") {
+        println!("{}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
     if std::env::args().any(|a| matches!(a.as_str(), "--snap" | "--tree" | "--list-scenes")) {
         rune::run(spec());
         return;

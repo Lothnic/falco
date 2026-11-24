@@ -1,6 +1,6 @@
 # Falco
 
-Current release: **2.5.0 — Refiner edition**.
+Current release: **2.5.1 — Unified interface**.
 
 An experimental community Linux dictation app built on [TuxTalk](https://github.com/ronb1964/TuxTalk), using the separately distributed [Phonon refiner](https://huggingface.co/Infatoshi/phonon-refiner-1.7b) for local transcript cleanup. This is not an official Phonon or TuxTalk release. Its tray and service are adapted from TuxTalk, with a Rune dashboard and recording overlay.
 
@@ -8,14 +8,29 @@ An experimental community Linux dictation app built on [TuxTalk](https://github.
 
 The default speech model is Parakeet Ultra v3 (about **670 MB**). The optional Phonon refiner and its engine add about **1 GB** when enabled. The refiner is English-only. Falco uses the unrefined transcript until the refiner is ready. Processing is local after downloading.
 
-With the refiner active, **Preferences → Advanced → Refiner writing mode**
+With the refiner active, **Settings → Refiner → Writing style**
 offers Minimal, Casual, Formal, AI prompt, and Match the focused app. App
 matching uses the desktop's application ID and defaults to Minimal when
 Falco can't identify the app.
 
-## Falco 2.5 — Refiner edition
+## Falco 2.5.1 — Unified interface
 
-**Preferences → Advanced → Accelerate Phonon refinement (experimental)**
+Rune now contains the full settings catalog, pronunciation and snippet editors,
+usage totals, update controls, backups and earlier restore points. Tray settings,
+words, help and about actions reuse the same window. Edits are kept until you
+apply or discard them. Failed or cancelled model downloads keep saved settings
+and your drafts intact.
+
+The dark slate-and-mint appearance stays consistent across these pages. Native
+file pickers and administrator authentication still belong to your desktop.
+First-run setup and the optional GTK compatibility interface remain available.
+Set `FALCO_LEGACY_UI=1` when launching to explicitly use the GTK interface.
+
+[2.5.1 release notes](../docs/releases/v2.5.1.md)
+
+### Refiner edition features
+
+**Settings → Refiner → Accelerate Phonon refinement**
 downloads a matching DFlash2 drafter (215 MB) beside the existing refiner.
 It proposes blocks of tokens that Phonon verifies before using them. This
 option is off by default and applies only to Phonon; Gemma and Llama keep
@@ -54,9 +69,9 @@ curl -fsSL https://falco.lothnic.dev/install.sh | bash
 ```
 
 It uses apt, dnf, pacman, or zypper for the system packages, then installs
-Falco under `~/.local/share/falco-app` and adds `~/.local/bin/falco`. To build
-the optional Rune dashboard and overlay first (Rust 1.99.1 or newer required),
-use:
+Falco under `~/.local/share/falco-app` and adds `~/.local/bin/falco`. Linux
+x86_64 gets matching, checksum-verified Rune binaries (Ubuntu 24.04 / glibc
+2.39 or newer). To build the UI locally instead (Rust 1.99.1 or newer), use:
 
 ```sh
 curl -fsSL https://falco.lothnic.dev/install.sh | bash -s -- --with-rune
@@ -66,8 +81,7 @@ The installer uses the latest published release tag and falls back to the
 preview from `main` until a release is published. Pass `--no-deps` to skip
 system packages, or `--ref` to choose a branch, tag, or commit.
 
-Rerun the installer to upgrade, with `--with-rune` if you use the dashboard
-and overlay. The existing launcher stays active until the new release is
+Rerun the installer to upgrade, then quit and reopen Falco. The existing launcher stays active until the new release is
 ready. Failed installs can be retried with the same command.
 
 Once a day, at startup, Falco also checks GitHub for a newer release and
@@ -104,7 +118,15 @@ Install the system dependencies (package names vary on other distributions):
 sudo apt install python3 python3-venv python3-pip python3-gi python3-gi-cairo python3-dbus python3-evdev gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1 libportaudio2 wl-clipboard
 ```
 
-To include the Rune window and overlay, first build both binaries from the repository root with `cargo build --release --locked --manifest-path linux/rune-overlay/Cargo.toml` (Rust 1.99.1 or newer is required). Then run `./install.sh` from this directory. It installs the source, Python dependencies, a `falco` command, and an application launcher in your user account. If the Rune binaries are present, the launcher opens the new dashboard; otherwise it starts the existing tray interface. Then start **Falco** from your applications. The first-run screens configure typing permissions, a hotkey, and a speech model, then offer a test dictation. In Preferences → Advanced, enable **Refine dictation with Phonon’s local model** to download and activate the refiner. Do not run this package at the same time as the earlier prototype: both can listen for the same hotkeys. The app needs access to keyboard events and virtual input on Wayland; the first-run screens can guide you through those permissions.
+Run `./install.sh` from this directory. It downloads the exact release's Rune
+bundle on Linux x86_64, then installs the source, Python dependencies, command
+and application launcher in your user account. An unavailable or incompatible
+bundle falls back to GTK. To build Rune locally, run
+`./linux/packaging/build-rune-bundle.sh` from the repository root before installing.
+Then start **Falco** from your applications. First-run setup configures typing
+permissions, a hotkey and a speech model. In **Settings → Refiner**, enable
+**Refine dictation** to download the local refiner. Avoid running an older
+prototype at the same time, since both can listen for the same hotkeys.
 
 For development, create a virtual environment with system site packages and run `python -m localdictation.tray`. The `localdictation` Python module name is an internal implementation detail.
 
@@ -126,15 +148,15 @@ state while a dictation is processed. If the sidecar cannot start or cannot
 show an overlay, the existing GTK recording indicator remains available.
 
 To show provisional words while recording, enable **Show a live transcript
-in Rune** under **Preferences → Audio → Customize**. This setting is off by
+in Rune** under **Settings → Appearance**. This setting is off by
 default. It uses Parakeet on the CPU and works alongside Type at pause as
 well as with dictations inserted at release. The overlay keeps a short draft
 in memory for the current recording. Falco runs the usual full transcription
 and optional refinement at release.
 
-The installer keeps one copy of Rune under `~/.local/share/falco-app/rune`
-and links each release to it, so an update does not lose the dashboard or
-overlay. With no Rune binaries, the launcher uses the GTK tray.
+The installer stores Rune under `~/.local/share/falco-app/rune/<version>` and
+links each release to its matching UI. It never reuses an older dashboard.
+Without compatible Rune binaries, the launcher uses the GTK tray.
 
 Search your session's dictations in the Rune dashboard's **Recent** tab.
 
@@ -142,7 +164,7 @@ Search your session's dictations in the Rune dashboard's **Recent** tab.
 
 Long dictations can be heard while you speak instead of after you stop, so the
 wait at release does not grow with how long you talked. Enable **Start typing
-sooner** under **Preferences → Audio → Customize**. It is off by default.
+sooner** under **Settings → Audio**. It is off by default.
 
 What happens: at each pause you make, the phrase so far is transcribed and
 kept. At release only the audio after the last pause is transcribed, and the
@@ -169,7 +191,7 @@ its result instead of queuing a duplicate. Otherwise the release refines as usua
 
 ## Background music
 
-Under **Preferences → Audio → Other sound while you dictate**, **Pause music
+Under **Settings → Audio**, **Pause music
 and videos** stops the players that are playing so the microphone hears only
 you. **Resume it after dictating** starts them again when the dictation ends;
 turn it off to leave them paused. If a browser accepts the play request but
@@ -177,7 +199,7 @@ stays paused, Falco checks once and toggles it to recover.
 
 ## Developer mode
 
-Under **Preferences → Advanced → Developer mode**, spoken code is written as
+Under **Settings → Text → Developer mode**, spoken code is written as
 code instead of prose. Choose **In code apps** (the default: code editors and
 terminals) or **Always**.
 
@@ -193,11 +215,11 @@ terminals) or **Always**.
 
 Code dictation keeps the transcript exact: the prose refiner and AI cleanup
 are skipped so they cannot rewrite code. A word the model still mishears can
-be taught in **Preferences → Words**.
+be taught in **Your words**.
 
 ## A dictionary that learns
 
-**Preferences → Words → Learned automatically** shows the names Falco taught
+**Your words → Learned automatically** shows the names Falco taught
 itself. With **Learn names from the refiner** on, a word the refiner fixes
 only in spelling or capitals, in the middle of a dictation ("github" →
 "GitHub", "tux talk" → "TuxTalk"), is counted; on the second sighting it joins
@@ -210,7 +232,7 @@ them; Your Words itself is never changed.
 
 ## Refiner models and Hindi
 
-**Preferences → Advanced → Refiner model** chooses which local model cleans up
+**Settings → Refiner → Refiner model** chooses which local model cleans up
 a transcript:
 
 - **Automatic** (default): Phonon 1.7B for English, Gemma 3 1B when the
@@ -223,7 +245,7 @@ Choosing a model downloads it; **Automatic** needs Gemma 3 1B downloaded once
 before Hindi dictation uses it.
 
 Hindi dictation also needs a **Whisper** speech model — Parakeet is English
-only. Set the language to Hindi in **Preferences → Speech**. The refiner keeps
+only. Set the language to Hindi in **Settings → Speech**. The refiner keeps
 the transcript's language and script and never translates it.
 
 ## The command line

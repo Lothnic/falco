@@ -1,0 +1,1115 @@
+[
+  {
+    "section": "general",
+    "key": "hotkey",
+    "label": "Hold to talk",
+    "hint": "Hold this key while speaking.",
+    "datatype": "str",
+    "kind": "choice",
+    "value": "F8",
+    "choices": [
+      {
+        "value": "",
+        "label": "Not configured"
+      },
+      {
+        "value": "F1",
+        "label": "F1"
+      },
+      {
+        "value": "F2",
+        "label": "F2"
+      },
+      {
+        "value": "F3",
+        "label": "F3"
+      },
+      {
+        "value": "F4",
+        "label": "F4"
+      },
+      {
+        "value": "F5",
+        "label": "F5"
+      },
+      {
+        "value": "F6",
+        "label": "F6"
+      },
+      {
+        "value": "F7",
+        "label": "F7"
+      },
+      {
+        "value": "F8",
+        "label": "F8"
+      },
+      {
+        "value": "F9",
+        "label": "F9"
+      },
+      {
+        "value": "F10",
+        "label": "F10"
+      },
+      {
+        "value": "F11",
+        "label": "F11"
+      },
+      {
+        "value": "F12",
+        "label": "F12"
+      },
+      {
+        "value": "Right Ctrl",
+        "label": "Right Ctrl"
+      },
+      {
+        "value": "Right Alt",
+        "label": "Right Alt"
+      },
+      {
+        "value": "Scroll Lock",
+        "label": "Scroll Lock"
+      },
+      {
+        "value": "Left Ctrl+Space",
+        "label": "Left Ctrl+Space"
+      }
+    ]
+  },
+  {
+    "section": "general",
+    "key": "toggle_hotkey",
+    "label": "Toggle recording",
+    "hint": "Press once to start and again to finish. Empty disables it.",
+    "datatype": "str",
+    "kind": "choice",
+    "value": "",
+    "choices": [
+      {
+        "value": "",
+        "label": "Disabled"
+      },
+      {
+        "value": "F1",
+        "label": "F1"
+      },
+      {
+        "value": "F2",
+        "label": "F2"
+      },
+      {
+        "value": "F3",
+        "label": "F3"
+      },
+      {
+        "value": "F4",
+        "label": "F4"
+      },
+      {
+        "value": "F5",
+        "label": "F5"
+      },
+      {
+        "value": "F6",
+        "label": "F6"
+      },
+      {
+        "value": "F7",
+        "label": "F7"
+      },
+      {
+        "value": "F8",
+        "label": "F8"
+      },
+      {
+        "value": "F9",
+        "label": "F9"
+      },
+      {
+        "value": "F10",
+        "label": "F10"
+      },
+      {
+        "value": "F11",
+        "label": "F11"
+      },
+      {
+        "value": "F12",
+        "label": "F12"
+      },
+      {
+        "value": "Right Ctrl",
+        "label": "Right Ctrl"
+      },
+      {
+        "value": "Right Alt",
+        "label": "Right Alt"
+      },
+      {
+        "value": "Scroll Lock",
+        "label": "Scroll Lock"
+      },
+      {
+        "value": "Left Ctrl+Space",
+        "label": "Left Ctrl+Space"
+      }
+    ]
+  },
+  {
+    "section": "general",
+    "key": "voice_commands_hotkey",
+    "label": "Command reference shortcut",
+    "hint": "Opens the voice command reference.",
+    "datatype": "str",
+    "kind": "text",
+    "value": "Ctrl+Alt+V",
+    "choices": []
+  },
+  {
+    "section": "general",
+    "key": "paste_last_hotkey",
+    "label": "Paste last dictation shortcut",
+    "hint": "Empty disables this shortcut.",
+    "datatype": "str",
+    "kind": "text",
+    "value": "Ctrl+Alt+P",
+    "choices": []
+  },
+  {
+    "section": "general",
+    "key": "mode",
+    "label": "Recording mode",
+    "hint": "Use hold-to-talk or toggle recording.",
+    "datatype": "str",
+    "kind": "choice",
+    "value": "hold",
+    "choices": [
+      {
+        "value": "hold",
+        "label": "Hold to talk"
+      },
+      {
+        "value": "toggle",
+        "label": "Toggle"
+      }
+    ]
+  },
+  {
+    "section": "general",
+    "key": "launch_at_login",
+    "label": "Launch at login",
+    "hint": "Start Falco when you sign in.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "general",
+    "key": "auto_timeout_enabled",
+    "label": "Stop when idle",
+    "hint": "Release the speech model after inactivity.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "true",
+    "choices": []
+  },
+  {
+    "section": "general",
+    "key": "auto_timeout_minutes",
+    "label": "Idle timeout (minutes)",
+    "hint": "Must be greater than zero.",
+    "datatype": "int",
+    "kind": "text",
+    "value": "5",
+    "choices": []
+  },
+  {
+    "section": "speech",
+    "key": "model",
+    "label": "Speech model",
+    "hint": "Parakeet for supported European languages; Whisper for more languages.",
+    "datatype": "str",
+    "kind": "choice",
+    "value": "parakeet-v3",
+    "choices": [
+      {
+        "value": "base",
+        "label": "Base"
+      },
+      {
+        "value": "base.en",
+        "label": "Base.En"
+      },
+      {
+        "value": "large",
+        "label": "Large"
+      },
+      {
+        "value": "large-v1",
+        "label": "Large-V1"
+      },
+      {
+        "value": "large-v2",
+        "label": "Large-V2"
+      },
+      {
+        "value": "large-v3",
+        "label": "Large-V3"
+      },
+      {
+        "value": "medium",
+        "label": "Medium"
+      },
+      {
+        "value": "medium.en",
+        "label": "Medium.En"
+      },
+      {
+        "value": "parakeet-v3",
+        "label": "Parakeet Ultra V3"
+      },
+      {
+        "value": "small",
+        "label": "Small"
+      },
+      {
+        "value": "small.en",
+        "label": "Small.En"
+      },
+      {
+        "value": "tiny",
+        "label": "Tiny"
+      },
+      {
+        "value": "tiny.en",
+        "label": "Tiny.En"
+      }
+    ]
+  },
+  {
+    "section": "speech",
+    "key": "device",
+    "label": "Processing device",
+    "hint": "CPU works everywhere. Vulkan uses a GPU; CUDA requires NVIDIA.",
+    "datatype": "str",
+    "kind": "choice",
+    "value": "cpu",
+    "choices": [
+      {
+        "value": "cpu",
+        "label": "CPU"
+      },
+      {
+        "value": "vulkan",
+        "label": "GPU \u00b7 Vulkan"
+      },
+      {
+        "value": "cuda",
+        "label": "NVIDIA \u00b7 CUDA"
+      }
+    ]
+  },
+  {
+    "section": "speech",
+    "key": "language",
+    "label": "Dictation language",
+    "hint": "Automatic detection or the language you speak.",
+    "datatype": "str",
+    "kind": "choice",
+    "value": "",
+    "choices": [
+      {
+        "value": "",
+        "label": "Detect automatically"
+      },
+      {
+        "value": "en",
+        "label": "English"
+      },
+      {
+        "value": "es",
+        "label": "Spanish"
+      },
+      {
+        "value": "fr",
+        "label": "French"
+      },
+      {
+        "value": "de",
+        "label": "German"
+      },
+      {
+        "value": "it",
+        "label": "Italian"
+      },
+      {
+        "value": "pt",
+        "label": "Portuguese"
+      },
+      {
+        "value": "ru",
+        "label": "Russian"
+      },
+      {
+        "value": "ja",
+        "label": "Japanese"
+      },
+      {
+        "value": "ko",
+        "label": "Korean"
+      },
+      {
+        "value": "zh",
+        "label": "Chinese"
+      },
+      {
+        "value": "ar",
+        "label": "Arabic"
+      },
+      {
+        "value": "hi",
+        "label": "Hindi"
+      },
+      {
+        "value": "nl",
+        "label": "Dutch"
+      },
+      {
+        "value": "sv",
+        "label": "Swedish"
+      },
+      {
+        "value": "no",
+        "label": "Norwegian"
+      },
+      {
+        "value": "da",
+        "label": "Danish"
+      },
+      {
+        "value": "fi",
+        "label": "Finnish"
+      },
+      {
+        "value": "pl",
+        "label": "Polish"
+      },
+      {
+        "value": "tr",
+        "label": "Turkish"
+      },
+      {
+        "value": "he",
+        "label": "Hebrew"
+      },
+      {
+        "value": "th",
+        "label": "Thai"
+      },
+      {
+        "value": "vi",
+        "label": "Vietnamese"
+      },
+      {
+        "value": "uk",
+        "label": "Ukrainian"
+      },
+      {
+        "value": "cs",
+        "label": "Czech"
+      },
+      {
+        "value": "hu",
+        "label": "Hungarian"
+      },
+      {
+        "value": "ro",
+        "label": "Romanian"
+      },
+      {
+        "value": "bg",
+        "label": "Bulgarian"
+      },
+      {
+        "value": "hr",
+        "label": "Croatian"
+      },
+      {
+        "value": "sk",
+        "label": "Slovak"
+      },
+      {
+        "value": "sl",
+        "label": "Slovenian"
+      },
+      {
+        "value": "et",
+        "label": "Estonian"
+      },
+      {
+        "value": "lv",
+        "label": "Latvian"
+      },
+      {
+        "value": "lt",
+        "label": "Lithuanian"
+      },
+      {
+        "value": "el",
+        "label": "Greek"
+      },
+      {
+        "value": "mt",
+        "label": "Maltese"
+      }
+    ]
+  },
+  {
+    "section": "speech",
+    "key": "auto_languages",
+    "label": "Limit automatic detection",
+    "hint": "Optional comma-separated language codes, such as en,hi.",
+    "datatype": "str",
+    "kind": "text",
+    "value": "",
+    "choices": []
+  },
+  {
+    "section": "audio",
+    "key": "mic",
+    "label": "Microphone",
+    "hint": "System default follows the input chosen by your desktop.",
+    "datatype": "str",
+    "kind": "choice",
+    "value": "",
+    "choices": [
+      {
+        "value": "",
+        "label": "System default"
+      }
+    ]
+  },
+  {
+    "section": "audio",
+    "key": "beeps",
+    "label": "Recording sounds",
+    "hint": "Play a sound when recording starts and finishes.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "true",
+    "choices": []
+  },
+  {
+    "section": "audio",
+    "key": "notify",
+    "label": "Desktop notifications",
+    "hint": "Notifications may include a transcript preview.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "audio",
+    "key": "pause_media",
+    "label": "Pause other media",
+    "hint": "Pause playing music and video while recording.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "true",
+    "choices": []
+  },
+  {
+    "section": "audio",
+    "key": "resume_media",
+    "label": "Resume media afterwards",
+    "hint": "Resume only players that Falco paused.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "true",
+    "choices": []
+  },
+  {
+    "section": "audio",
+    "key": "duck_audio",
+    "label": "Lower other audio",
+    "hint": "Restore the original volume after recording.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "audio",
+    "key": "auto_stop_silence",
+    "label": "Stop after silence",
+    "hint": "Finish toggle recordings when you stop speaking.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "audio",
+    "key": "auto_stop_seconds",
+    "label": "Silence before stopping (seconds)",
+    "hint": "Between 0.5 and 10 seconds.",
+    "datatype": "float",
+    "kind": "text",
+    "value": "2.0",
+    "choices": []
+  },
+  {
+    "section": "audio",
+    "key": "streaming_dictation",
+    "label": "Start typing sooner",
+    "hint": "Hear phrases during pauses with CPU Parakeet.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "audio",
+    "key": "chunked_dictation",
+    "label": "Type at pauses",
+    "hint": "Insert each phrase while recording. Experimental.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "audio",
+    "key": "chunk_pause_seconds",
+    "label": "Pause length (seconds)",
+    "hint": "Between 0.3 and 3 seconds; shorter than auto-stop.",
+    "datatype": "float",
+    "kind": "text",
+    "value": "0.8",
+    "choices": []
+  },
+  {
+    "section": "audio",
+    "key": "chunk_context_marks",
+    "label": "Use phrase context",
+    "hint": "Consider adjoining phrases when choosing punctuation.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "true",
+    "choices": []
+  },
+  {
+    "section": "refiner",
+    "key": "ai_corrections",
+    "label": "Refine dictation",
+    "hint": "Clean up transcripts locally. Missing models download before saving.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "true",
+    "choices": []
+  },
+  {
+    "section": "refiner",
+    "key": "refiner_model",
+    "label": "Refiner model",
+    "hint": "Automatic uses Phonon for English and Gemma for Hindi.",
+    "datatype": "str",
+    "kind": "choice",
+    "value": "auto",
+    "choices": [
+      {
+        "value": "auto",
+        "label": "Automatic"
+      },
+      {
+        "value": "phonon",
+        "label": "Phonon English \u00b7 1.7B"
+      },
+      {
+        "value": "gemma-3-1b",
+        "label": "Gemma 3 \u00b7 1B"
+      },
+      {
+        "value": "llama-3.2-1b",
+        "label": "Llama 3.2 \u00b7 1B"
+      }
+    ]
+  },
+  {
+    "section": "refiner",
+    "key": "refiner_mode",
+    "label": "Writing style",
+    "hint": "Keep your wording while adjusting the style for its destination.",
+    "datatype": "str",
+    "kind": "choice",
+    "value": "minimal",
+    "choices": [
+      {
+        "value": "minimal",
+        "label": "Minimal"
+      },
+      {
+        "value": "casual",
+        "label": "Casual"
+      },
+      {
+        "value": "formal",
+        "label": "Formal"
+      },
+      {
+        "value": "prompt",
+        "label": "AI prompt"
+      },
+      {
+        "value": "auto",
+        "label": "Match the focused app"
+      }
+    ]
+  },
+  {
+    "section": "refiner",
+    "key": "refiner_acceleration",
+    "label": "Accelerate Phonon refinement",
+    "hint": "Optional 215 MB download. Turn off if slower on your hardware.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "refiner",
+    "key": "learn_words",
+    "label": "Learn corrected names",
+    "hint": "Remember names the refiner repeatedly corrects.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "true",
+    "choices": []
+  },
+  {
+    "section": "refiner",
+    "key": "voice_editing",
+    "label": "Voice editing",
+    "hint": "Shift + the dictation key rewrites selected text. Experimental.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "text",
+    "key": "auto_space",
+    "label": "Space after dictation",
+    "hint": "Leave a space ready for the next phrase.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "true",
+    "choices": []
+  },
+  {
+    "section": "text",
+    "key": "auto_period",
+    "label": "End with punctuation",
+    "hint": "Add a closing period where appropriate.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "true",
+    "choices": []
+  },
+  {
+    "section": "text",
+    "key": "smart_quotes",
+    "label": "Smart quotes",
+    "hint": "Use typographic quotation marks.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "true",
+    "choices": []
+  },
+  {
+    "section": "text",
+    "key": "remove_fillers",
+    "label": "Remove fillers and repeats",
+    "hint": "Remove um, uh and accidental repeated words using local rules.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "text",
+    "key": "numbers_as_digits",
+    "label": "Write numbers as digits",
+    "hint": "Convert spoken numbers in supported languages.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "text",
+    "key": "numbers_small_as_words",
+    "label": "Keep small numbers as words",
+    "hint": "Keep a lone one through nine as words.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "text",
+    "key": "swiss_spelling",
+    "label": "Swiss German spelling",
+    "hint": "Use ss in place of \u00df.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "text",
+    "key": "adapt_to_app",
+    "label": "Adapt to the focused app",
+    "hint": "Use plain text in terminals and code editors.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "true",
+    "choices": []
+  },
+  {
+    "section": "text",
+    "key": "developer_mode",
+    "label": "Developer mode",
+    "hint": "Handle spoken file names, casing and symbols as code.",
+    "datatype": "str",
+    "kind": "choice",
+    "value": "auto",
+    "choices": [
+      {
+        "value": "off",
+        "label": "Off"
+      },
+      {
+        "value": "auto",
+        "label": "In code apps"
+      },
+      {
+        "value": "on",
+        "label": "Always"
+      }
+    ]
+  },
+  {
+    "section": "text",
+    "key": "injection_mode",
+    "label": "Text insertion",
+    "hint": "Automatic chooses typing or clipboard paste for the app.",
+    "datatype": "str",
+    "kind": "choice",
+    "value": "auto",
+    "choices": [
+      {
+        "value": "auto",
+        "label": "Automatic"
+      },
+      {
+        "value": "type",
+        "label": "Type with keyboard"
+      },
+      {
+        "value": "paste",
+        "label": "Clipboard paste"
+      }
+    ]
+  },
+  {
+    "section": "text",
+    "key": "key_delay",
+    "label": "Typing delay (milliseconds)",
+    "hint": "Between 1 and 50. Increase if an app drops characters.",
+    "datatype": "int",
+    "kind": "text",
+    "value": "2",
+    "choices": []
+  },
+  {
+    "section": "text",
+    "key": "restore_clipboard",
+    "label": "Restore clipboard",
+    "hint": "Put back the item copied before a dictation paste.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "text",
+    "key": "press_enter_after",
+    "label": "Send automatically",
+    "hint": "Press Enter after dictation. Use care in messaging apps.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "text",
+    "key": "press_enter_delay",
+    "label": "Wait before sending (seconds)",
+    "hint": "Between 0 and 4. Tap the dictation key to hold a send.",
+    "datatype": "float",
+    "kind": "text",
+    "value": "2.0",
+    "choices": []
+  },
+  {
+    "section": "appearance",
+    "key": "recording_indicator",
+    "label": "Show recording overlay",
+    "hint": "Display listening and finishing status.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "true",
+    "choices": []
+  },
+  {
+    "section": "appearance",
+    "key": "rune_live_preview",
+    "label": "Show live transcript",
+    "hint": "Show provisional words and streamed cleanup in Rune.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "appearance",
+    "key": "indicator_position",
+    "label": "Fallback overlay position",
+    "hint": "Applies to the GTK fallback; Rune stays at the bottom of the screen.",
+    "datatype": "str",
+    "kind": "choice",
+    "value": "center",
+    "choices": [
+      {
+        "value": "bottom-center",
+        "label": "Bottom Center"
+      },
+      {
+        "value": "bottom-left",
+        "label": "Bottom Left"
+      },
+      {
+        "value": "bottom-right",
+        "label": "Bottom Right"
+      },
+      {
+        "value": "center",
+        "label": "Center"
+      },
+      {
+        "value": "left-center",
+        "label": "Left Center"
+      },
+      {
+        "value": "right-center",
+        "label": "Right Center"
+      },
+      {
+        "value": "top-center",
+        "label": "Top Center"
+      },
+      {
+        "value": "top-left",
+        "label": "Top Left"
+      },
+      {
+        "value": "top-right",
+        "label": "Top Right"
+      }
+    ]
+  },
+  {
+    "section": "appearance",
+    "key": "indicator_size",
+    "label": "Fallback overlay size",
+    "hint": "Used when the Rune recording overlay is unavailable.",
+    "datatype": "str",
+    "kind": "choice",
+    "value": "medium",
+    "choices": [
+      {
+        "value": "small",
+        "label": "Small"
+      },
+      {
+        "value": "medium",
+        "label": "Medium"
+      },
+      {
+        "value": "large",
+        "label": "Large"
+      }
+    ]
+  },
+  {
+    "section": "appearance",
+    "key": "indicator_style",
+    "label": "Fallback overlay style",
+    "hint": "Used when the Rune recording overlay is unavailable.",
+    "datatype": "str",
+    "kind": "choice",
+    "value": "orb",
+    "choices": [
+      {
+        "value": "bars",
+        "label": "Bars"
+      },
+      {
+        "value": "orb",
+        "label": "Orb"
+      },
+      {
+        "value": "radial",
+        "label": "Radial"
+      },
+      {
+        "value": "waveform",
+        "label": "Waveform"
+      }
+    ]
+  },
+  {
+    "section": "appearance",
+    "key": "indicator_color_mode",
+    "label": "Fallback overlay color mode",
+    "hint": "Use the desktop accent or a custom color.",
+    "datatype": "str",
+    "kind": "choice",
+    "value": "custom",
+    "choices": [
+      {
+        "value": "system",
+        "label": "Desktop accent"
+      },
+      {
+        "value": "custom",
+        "label": "Custom color"
+      }
+    ]
+  },
+  {
+    "section": "appearance",
+    "key": "indicator_color",
+    "label": "Fallback overlay color",
+    "hint": "A color in #RRGGBB format.",
+    "datatype": "str",
+    "kind": "text",
+    "value": "#4db3ff",
+    "choices": []
+  },
+  {
+    "section": "appearance",
+    "key": "indicator_sensitivity",
+    "label": "Overlay sensitivity",
+    "hint": "Between 0.5 and 2. Used by the fallback meter.",
+    "datatype": "float",
+    "kind": "text",
+    "value": "1.0",
+    "choices": []
+  },
+  {
+    "section": "appearance",
+    "key": "indicator_follows_window",
+    "label": "Fallback follows focused window",
+    "hint": "Position the fallback overlay beside the app being dictated into.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "true",
+    "choices": []
+  },
+  {
+    "section": "appearance",
+    "key": "indicator_offset_x",
+    "label": "Fallback horizontal offset",
+    "hint": "Pixels from its anchor; negative values move left.",
+    "datatype": "int",
+    "kind": "text",
+    "value": "0",
+    "choices": []
+  },
+  {
+    "section": "appearance",
+    "key": "indicator_offset_y",
+    "label": "Fallback vertical offset",
+    "hint": "Pixels from its anchor; negative values move up.",
+    "datatype": "int",
+    "kind": "text",
+    "value": "0",
+    "choices": []
+  },
+  {
+    "section": "advanced",
+    "key": "voice_navigation",
+    "label": "Navigate by voice",
+    "hint": "Select text and move the cursor. Experimental.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "advanced",
+    "key": "open_apps",
+    "label": "Control apps by voice",
+    "hint": "Open apps, switch windows and use the mouse grid. Experimental.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "advanced",
+    "key": "log_transcripts",
+    "label": "Log transcript text",
+    "hint": "Off for privacy. Enabling writes your dictated words to the local log.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "stats",
+    "key": "usage_stats",
+    "label": "Keep usage statistics",
+    "hint": "Counts and durations only; never stores dictated text.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "true",
+    "choices": []
+  },
+  {
+    "section": "stats",
+    "key": "typing_wpm",
+    "label": "Your typing speed (words/min)",
+    "hint": "Used to estimate time saved; between 10 and 200.",
+    "datatype": "int",
+    "kind": "text",
+    "value": "40",
+    "choices": []
+  },
+  {
+    "section": "updates",
+    "key": "auto_check_updates",
+    "label": "Check for updates automatically",
+    "hint": "Check once a day when Falco starts.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "true",
+    "choices": []
+  }
+]

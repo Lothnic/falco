@@ -1,6 +1,6 @@
 # Falco
 
-[**2.5.0 — Refiner edition**](https://github.com/Lothnic/falco/releases/tag/v2.5.0)
+[**2.5.1 — Unified interface**](https://github.com/Lothnic/falco/releases/tag/v2.5.1)
 
 Falco is a local voice dictation app for Linux. Hold a dictation key, speak,
 and the text is typed into the application you are using. Speech recognition
@@ -27,20 +27,19 @@ official Phonon or TuxTalk release.
 - **Optional local cleanup.** The Phonon refiner fixes self-corrections,
   removes fillers and false starts, and tidies capitalization. The refiner is
   English-only, and dictation uses the raw transcript until it is installed.
-  Choose a writing mode in Preferences → Advanced, or let Falco match
+  Choose a writing mode in Settings → Refiner, or let Falco match
   supported chat, mail, terminal, and coding apps.
 - **Your vocabulary.** Custom words steer recognition, and voice commands
   handle punctuation, formatting, undo, and "fix that word". Falco Labs adds
   optional voice editing, selection, and app, window, key, and mouse control.
-- **Rune dashboard and overlay.** Overview, Recent, Your words, and Settings
-  pages, plus a sound-responsive recording overlay. Search the current
+- **Rune dashboard and overlay.** Settings, pronunciations, snippets, usage, updates and backups
+  share one dark slate-and-mint window, plus a sound-responsive recording overlay. Search the current
   session's dictations in Recent. An optional live transcript shows the
   latest words while you speak with Parakeet on the CPU. The GTK tray and
   recording indicator remain the fallback.
 - **Private by design.** Audio and transcripts stay on the machine. No account
   is required, and dictation needs no network once the models are downloaded.
-- **Short wait after the key.** With **Start typing sooner** on (Preferences →
-  Audio → Customize), Falco hears each phrase as you pause, so releasing the
+- **Short wait after the key.** With **Start typing sooner** on (Settings → Audio), Falco hears each phrase as you pause, so releasing the
   key only transcribes the last one. A long dictation no longer means a long
   wait. The text is spliced at the pauses you made, and the whole recording is
   transcribed as before if a splice can't be vouched for. With the refiner on,
@@ -51,16 +50,32 @@ official Phonon or TuxTalk release.
   over SSH. `falco --toggle` and `falco --start`/`--stop` drive the running
   app.
 
-## Falco 2.5 — Refiner edition
+## Falco 2.5.1 — Unified interface
+
+Settings and vocabulary editing now stay inside Rune. Search every setting,
+apply or discard drafts, edit pronunciations and snippets, test your microphone
+and shortcuts, and manage updates and backups without opening the old
+Preferences window. Downloads show progress and can be cancelled; failed saves
+keep your edits. Tray actions bring the existing dashboard forward.
+
+The Linux x86_64 installer includes matching prebuilt Rune binaries, checked
+against the release checksum. Rust is needed only to build the UI from source.
+The GTK interface remains available as a compatibility fallback when Rune
+cannot run; first-run system setup still uses the existing setup screens.
+
+![Falco 2.5.1 unified Rune settings with example values](docs/images/rune-2.5.1.png)
+
+[2.5.1 release notes](docs/releases/v2.5.1.md)
+
+### Refiner edition features
 
 Falco **2.5 — Refiner edition** adds optional Phonon acceleration and streamed
-cleanup previews. In **Preferences → Advanced**, enable **Accelerate Phonon
-refinement (experimental)** to download its matching DFlash2 drafter (215 MB).
+cleanup previews. In **Settings → Refiner**, enable **Accelerate Phonon
+refinement** to download its matching DFlash2 drafter (215 MB).
 Speed depends on the hardware; ordinary decoding remains available and is
 used automatically if acceleration fails to start.
 
-Enable **Show a live transcript in Rune** under **Preferences → Audio →
-Customize** to see cleanup arrive while finishing. Also enable **Start typing
+Enable **Show a live transcript in Rune** under **Settings → Appearance** to see cleanup arrive while finishing. Also enable **Start typing
 sooner** for refinement during speech pauses with CPU Parakeet. Preview text
 can change as you continue speaking; only completed, checked text is typed
 into the focused app.
@@ -91,8 +106,7 @@ microphone → Parakeet Ultra or Whisper → cleanup rules → optional refiner 
 
 On first run, Falco downloads the default speech model (about **670 MB**)
 and offers a test dictation. To add cleanup, open
-**Preferences → Advanced** and enable **Refine dictation with Phonon's local
-model**; the app offers a one-time download of about 1 GB for the refiner and
+**Settings → Refiner** and enable **Refine dictation**; the app offers a one-time download of about 1 GB for the refiner and
 its llama.cpp engine.
 
 Recent dictations in the Rune dashboard are session data, kept only in memory
@@ -105,8 +119,9 @@ for the current login; they are not saved as a permanent history.
   environments.
 - PyGObject, D-Bus, evdev, PortAudio, and `wl-clipboard`. The apt command
   below installs these.
-- Rust 1.99.1 or newer only for the optional Rune dashboard and overlay.
-  Without it, Falco uses the GTK tray interface.
+- Prebuilt Rune UI: Linux x86_64 with glibc 2.39+ (built on Ubuntu 24.04).
+  Rust 1.99.1 or newer is needed only for source builds. Other systems can
+  build Rune locally or use the GTK compatibility interface.
 - About 670 MB to download the default speech model. The optional refiner
   and its engine add about 1 GB.
 
@@ -123,9 +138,9 @@ curl -fsSL https://falco.lothnic.dev/install.sh | bash
 ```
 
 It supports apt, dnf, pacman, and zypper, installs the dependencies with
-`sudo`, and then installs Falco under your user account. Add
-`--with-rune` (with Rust 1.99.1 or newer already installed) to build the Rune
-dashboard and overlay first:
+`sudo`, and then installs Falco and the matching Rune dashboard under your
+user account on Linux x86_64. To build the UI locally instead, add
+`--with-rune` (Rust 1.99.1 or newer):
 
 ```bash
 curl -fsSL https://falco.lothnic.dev/install.sh | bash -s -- --with-rune
@@ -136,8 +151,7 @@ published, it uses the preview from `main`. Use `--ref` to choose a specific
 tag, branch, or commit. Use `--no-deps` if you manage the system packages
 yourself. You can download and read the Bash script before running it.
 
-Run the same command again to upgrade. Include `--with-rune` if you use
-the dashboard and overlay. If an install fails, you can retry it. Falco
+Run the same command again to upgrade. Quit and reopen Falco afterwards. If an install fails, you can retry it. Falco
 keeps the existing launcher active until the new release is ready and
 keeps previous releases in `~/.local/share/falco-app/releases`.
 
@@ -158,7 +172,7 @@ git clone https://github.com/Lothnic/falco.git
 cd falco
 
 # Optional: build the Rune dashboard and recording overlay.
-cargo build --release --locked --manifest-path linux/rune-overlay/Cargo.toml
+./linux/packaging/build-rune-bundle.sh
 
 # Installs under ~/.local/share/falco-app and adds ~/.local/bin/falco.
 ./linux/install.sh
@@ -171,8 +185,8 @@ offer a field to check that your words are typed. If both
 Rune binaries are present, the launcher opens the Rune dashboard; otherwise
 it opens the GTK tray interface.
 
-To upgrade a checkout install, check out the desired revision, rebuild Rune
-if you use it, and rerun `./linux/install.sh`.
+To upgrade a checkout install, check out the desired revision and rerun
+`./linux/install.sh`. It accepts only a matching UI build or release bundle.
 
 ## Development
 

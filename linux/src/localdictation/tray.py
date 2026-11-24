@@ -433,6 +433,12 @@ class DictationTray(ServiceLifecycle, Presets):
         open, it's brought forward on *tab* instead: doing nothing looked
         like Preferences failed to open when it was behind other windows."""
         try:
+            from .ui_launcher import open_dashboard
+            page = "words" if tab == "words" else "stats" if tab == "stats" else "updates" if tab in ("updates", "backup") else "settings"
+            process = open_dashboard(page, tab if page == "settings" else None)
+            if process is not None:
+                self.preferences_process = process
+                return
             if self._preferences_open():
                 from . import prefs_ipc
                 pid = prefs_ipc.running_pid()
@@ -515,21 +521,33 @@ class DictationTray(ServiceLifecycle, Presets):
 
     def show_help(self, _):
         """Show help dialog with TuxTalk features and instructions."""
+        from .ui_launcher import open_dashboard
+        if open_dashboard("help") is not None:
+            return
         from .help_dialog import show_help_dialog
         show_help_dialog()
 
     def show_voice_commands(self, _):
-        """Show voice commands quick reference popup."""
+        """Show the voice commands reference in the active interface."""
+        from .ui_launcher import open_dashboard
+        if open_dashboard("commands") is not None:
+            return
         from .voice_commands_dialog import show_voice_commands_dialog
         show_voice_commands_dialog()
 
     def show_about_dialog(self, _):
-        """Open About TuxTalk (about_dialog.py)."""
+        """Show the app version and credits."""
+        from .ui_launcher import open_dashboard
+        if open_dashboard("about") is not None:
+            return
         from .about_dialog import show_about_dialog
         show_about_dialog()
 
     def check_for_updates_clicked(self, _):
         """Check for Updates in the menu (update_ui.check_from_menu)."""
+        from .ui_launcher import open_dashboard
+        if open_dashboard("updates") is not None:
+            return
         update_ui.check_from_menu(self._show_update_result_dialog,
                                   lambda: self._quitting)
 

@@ -4,6 +4,14 @@ use rune::{App, AppSpec, Color, Cx, El, ScrollSpec, TextEdit, col, el, row, text
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::io::Write;
+#[path = "../dashboard/ipc.rs"]
+mod dashboard_ipc;
+#[path = "../dashboard/pages.rs"]
+mod pages_ui;
+#[path = "../dashboard/settings.rs"]
+mod settings_ui;
+#[path = "../dashboard/words.rs"]
+mod words_ui;
 use std::process::{Command, Stdio};
 use std::sync::{OnceLock, mpsc};
 use std::time::Duration;
@@ -17,12 +25,25 @@ enum Page {
     Recent,
     Words,
     Settings,
+    Stats,
+    Updates,
+    Help,
+    Commands,
 }
 
 #[derive(Clone, Default, Deserialize)]
 #[serde(default)]
 struct Snapshot {
     version: String,
+    settings: Vec<settings_ui::Field>,
+    job: settings_ui::Job,
+    word_rows: Vec<words_ui::Word>,
+    snippets: Vec<words_ui::Snippet>,
+    learned_words: Vec<String>,
+    stats_rows: Vec<settings_ui::StatRow>,
+    restore_points: Vec<pages_ui::RestorePoint>,
+    commands: Vec<pages_ui::VoiceCommand>,
+    system_rows: Vec<settings_ui::StatRow>,
     connected: bool,
     running: bool,
     recording: bool,
@@ -46,8 +67,14 @@ struct State {
     snapshot: Snapshot,
     loaded: bool,
     notice: String,
+    notice_error: bool,
+    dismissed_job: String,
+    confirmation: Option<(String, Value)>,
+    preferences: settings_ui::Preferences,
+    vocabulary: words_ui::Vocabulary,
     word_input: TextEdit,
     recent_query: TextEdit,
+    commands_query: TextEdit,
     edit_input: TextEdit,
     editing: bool,
 }
@@ -95,14 +122,51 @@ fn send_request(value: Value) {
         let _ = tx.send(value);
     }
 }
-fn add_word(s: &mut State) {
-    let word = s.word_input.text.trim().to_string();
-    if word.is_empty() {
-        s.notice = "Enter a word or short name.".into();
-        return;
+fn initial_state() -> State {
+    let mut state = State::default();
+    dashboard_ipc::route(&mut state, &dashboard_ipc::requested_route());
+    state
+}
+fn request_button(
+    s: &State,
+    label: &str,
+    key: &str,
+    request: Value,
+    primary: bool,
+    confirmation: Option<String>,
+) -> El {
+    let busy = s.snapshot.job.busy || s.preferences.saving;
+    let mut button = row()
+        .key(key.to_owned())
+        .role("button")
+        .label(label.to_owned())
+        .min_h(38.0)
+        .px(14.0)
+        .center()
+        .radius(8.0)
+        .fill(if primary && !busy { accent() } else { rail() })
+        .child(text(label.to_owned()).font(type_::LABEL).color(if busy {
+            muted()
+        } else if primary {
+            bg()
+        } else {
+            ink()
+        }));
+    if !busy {
+        button = button
+            .focusable(true)
+            .hover(edge())
+            .on_press(move |s: &mut State| {
+                s.notice.clear();
+                s.notice_error = false;
+                if let Some(message) = &confirmation {
+                    s.confirmation = Some((message.clone(), request.clone()));
+                } else {
+                    send_request(request.clone());
+                }
+            });
     }
-    send_request(json!({"action":"add_word", "word":word}));
-    s.notice = "Saving word…".into();
+    button
 }
 
 fn title(value: impl Into<String>) -> El {
@@ -137,7 +201,11 @@ fn button(label: &'static str, action: &'static str, primary: bool) -> El {
         })
         .on_press(move |s: &mut State| {
             s.notice.clear();
-            send(action);
+            match action {
+                "settings" => s.page = Page::Settings,
+                "words" => s.page = Page::Words,
+                _ => send(action),
+            }
         })
         .child(
             text(label)
@@ -449,222 +517,221 @@ fn recent(s: &State) -> El {
         ))
 }
 
-fn words(s: &State) -> El {
-    let mut entries = col().w_full().gap(0.0);
-    if s.snapshot.words.is_empty() {
-        entries = entries.child(secondary(
-            "No custom words yet. Add names or technical terms you use often.",
-        ));
-    } else {
-        for (i, word) in s.snapshot.words.iter().take(100).enumerate() {
-            if i > 0 {
-                entries = entries.child(rule());
-            }
-            entries = entries.child(row().w_full().py(11.0).child(body(word.clone())));
-        }
-    }
-    col()
-        .gap(22.0)
-        .w_full()
-        .child(page_header(
-            "Your words",
-            "Give dictation the names and terms you use.",
-        ))
-        .child(
-            row()
-                .gap(10.0)
-                .center_y()
-                .child(
-                    text_input(&s.word_input, type_::BODY)
-                        .key("word-input")
-                        .label("New word")
-                        .placeholder("Add a name or term", muted())
-                        .single_line()
-                        .grow(1.0)
-                        .h(40.0)
-                        .px(12.0)
-                        .radius(8.0)
-                        .fill(panel())
-                        .color(ink())
-                        .on_edit(|s: &mut State| &mut s.word_input)
-                        .on_submit(|s: &mut State, _| add_word(s)),
-                )
-                .child(
-                    row()
-                        .key("add-word")
-                        .role("button")
-                        .label("Add word")
-                        .focusable(true)
-                        .h(40.0)
-                        .px(16.0)
-                        .center()
-                        .radius(8.0)
-                        .fill(accent())
-                        .hover(color(0.56, 0.90, 0.79))
-                        .on_press(add_word)
-                        .child(text("Add word").font(type_::LABEL).color(bg())),
-                ),
-        )
-        .child(row().child(button("Manage pronunciations", "words", false)))
-        .child(card().child(entries))
-}
-fn setting_toggle(label: &'static str, name: &'static str, enabled: bool) -> El {
-    row()
-        .w_full()
-        .min_h(42.0)
-        .center_y()
-        .gap(12.0)
-        .child(body(label).grow(1.0))
-        .child(
-            row()
-                .key(format!("option-{name}"))
-                .role("switch")
-                .label(label)
-                .checked(enabled)
-                .focusable(true)
-                .h(32.0)
-                .px(12.0)
-                .center()
-                .radius(8.0)
-                .fill(if enabled { muted_accent() } else { rail() })
-                .hover(edge())
-                .on_press(move |s: &mut State| {
-                    send_request(json!({"action":"set_option", "name":name, "value":!enabled}));
-                    s.notice = "Saving…".into();
-                })
-                .child(
-                    text(if enabled { "On" } else { "Off" })
-                        .font(type_::LABEL)
-                        .color(if enabled { accent() } else { ink() }),
-                ),
-        )
-}
-
-fn settings(s: &State) -> El {
-    let refiner = if !s.snapshot.refiner {
-        "Off"
-    } else if s.snapshot.refiner_installed {
-        "Enabled · downloaded"
-    } else {
-        "Enabled · download required"
-    };
-    col()
-        .gap(22.0)
-        .w_full()
-        .child(page_header("Settings", "Your current dictation setup."))
-        .child(
-            card()
-                .child(title("Input & shortcuts"))
-                .child(info_row("Microphone", &s.snapshot.microphone))
-                .child(rule())
-                .child(info_row("Hold to talk", &s.snapshot.hotkey))
-                .child(rule())
-                .child(info_row("Toggle recording", &s.snapshot.toggle_hotkey)),
-        )
-        .child(
-            card()
-                .child(title("Local models"))
-                .child(info_row(
-                    "Speech recognition",
-                    if s.snapshot.engine.is_empty() {
-                        &s.snapshot.model
-                    } else {
-                        &s.snapshot.engine
-                    },
-                ))
-                .child(rule())
-                .child(info_row("Phonon refiner", refiner)),
-        )
-        .child(
-            card()
-                .child(title("Text formatting"))
-                .child(setting_toggle(
-                    "Add space after dictation",
-                    "auto_space",
-                    s.snapshot.auto_space,
-                ))
-                .child(rule())
-                .child(setting_toggle(
-                    "Add punctuation",
-                    "auto_period",
-                    s.snapshot.auto_period,
-                )),
-        )
-        .child(row().child(button("Open all settings", "settings", false)))
-        .child(secondary("Changes open in the existing settings window."))
-}
 fn view(s: &State, _: &mut Cx<State>) -> El {
+    let mut layer = Vec::new();
     let contents = match s.page {
         Page::Home => home(s),
         Page::Recent => recent(s),
-        Page::Words => words(s),
-        Page::Settings => settings(s),
+        Page::Words => words_ui::view(s),
+        Page::Settings => settings_ui::view(s, &mut layer),
+        Page::Stats => pages_ui::stats(s, &mut layer),
+        Page::Updates => pages_ui::updates(s, &mut layer),
+        Page::Help => pages_ui::help(s),
+        Page::Commands => pages_ui::commands(s),
     };
     let mut content = col().w_full().gap(18.0);
     if !s.notice.is_empty() {
-        content = content.child(secondary(s.notice.clone()));
+        content = content.child(text(s.notice.clone()).font(type_::BODY).wrap().color(
+            if s.notice_error {
+                color(1.0, 0.66, 0.61)
+            } else {
+                accent()
+            },
+        ));
     }
     if s.loaded && !s.snapshot.error.is_empty() {
         content = content.child(secondary(s.snapshot.error.clone()));
     }
-    content = content.child(contents);
-    row()
-        .key("window")
-        .role("window")
-        .w_full()
-        .h_full()
-        .fill(bg())
-        .child(
+    if let Some((message, request)) = &s.confirmation {
+        let request = request.clone();
+        content = content.child(
             col()
-                .key("sidebar")
-                .w(206.0)
-                .h_full()
+                .key("confirmation")
+                .w_full()
+                .gap(12.0)
                 .padding(18.0)
-                .gap(6.0)
-                .fill(rail())
+                .fill(panel())
+                .radius(12.0)
+                .child(body(message.clone()))
                 .child(
                     row()
-                        .h(64.0)
-                        .center_y()
-                        .gap(10.0)
-                        .child(el().size(11.0, 11.0).radius(5.5).fill(accent()))
+                        .gap(12.0)
                         .child(
-                            col()
-                                .gap(3.0)
-                                .child(title("Falco"))
-                                .child(secondary(&format!(
-                                    "v{} · Refiner edition",
+                            row()
+                                .key("confirm-action")
+                                .role("button")
+                                .label("Confirm action")
+                                .focusable(true)
+                                .h(36.0)
+                                .px(14.0)
+                                .center()
+                                .radius(8.0)
+                                .fill(accent())
+                                .on_press(move |s: &mut State| {
+                                    send_request(request.clone());
+                                    s.confirmation = None;
+                                })
+                                .child(text("Confirm").font(type_::LABEL).color(bg())),
+                        )
+                        .child(
+                            row()
+                                .key("cancel-action")
+                                .role("button")
+                                .label("Cancel action")
+                                .focusable(true)
+                                .h(36.0)
+                                .px(14.0)
+                                .center()
+                                .radius(8.0)
+                                .fill(rail())
+                                .on_press(|s: &mut State| s.confirmation = None)
+                                .child(body("Cancel")),
+                        ),
+                ),
+        );
+    }
+    if !s.snapshot.job.message.is_empty() && s.dismissed_job != s.snapshot.job.id {
+        let job = &s.snapshot.job;
+        let message = job
+            .result
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or(&job.message);
+        let mut progress = col()
+            .key("operation-status")
+            .w_full()
+            .gap(10.0)
+            .padding(16.0)
+            .radius(12.0)
+            .fill(panel())
+            .child(
+                text(message.to_owned())
+                    .font(type_::BODY)
+                    .wrap()
+                    .color(if job.failed {
+                        color(1.0, 0.66, 0.61)
+                    } else {
+                        ink()
+                    }),
+            );
+        if job.busy {
+            progress = progress.child(
+                row()
+                    .w_full()
+                    .gap(16.0)
+                    .center_y()
+                    .child(secondary(format!("{}%", job.progress)).grow(1.0))
+                    .child(if job.cancellable {
+                        row()
+                            .role("button")
+                            .label("Cancel operation")
+                            .focusable(true)
+                            .h(30.0)
+                            .px(10.0)
+                            .radius(6.0)
+                            .fill(rail())
+                            .on_press(|_: &mut State| send("cancel_job"))
+                            .child(secondary("Cancel"))
+                    } else {
+                        el()
+                    }),
+            );
+        }
+        if !job.busy {
+            let id = job.id.clone();
+            progress = progress.child(
+                row()
+                    .key("dismiss-operation")
+                    .role("button")
+                    .label("Dismiss status")
+                    .focusable(true)
+                    .min_h(30.0)
+                    .px(10.0)
+                    .radius(6.0)
+                    .fill(rail())
+                    .on_press(move |s: &mut State| {
+                        s.dismissed_job = id.clone();
+                        s.notice.clear();
+                    })
+                    .child(secondary("Dismiss")),
+            );
+        }
+        content = content.child(progress);
+    }
+    let has_banner = !s.notice.is_empty()
+        || (s.loaded && !s.snapshot.error.is_empty())
+        || s.confirmation.is_some()
+        || (!s.snapshot.job.message.is_empty() && s.dismissed_job != s.snapshot.job.id);
+    let base =
+        row()
+            .key("window")
+            .role("window")
+            .w_full()
+            .h_full()
+            .fill(bg())
+            .child(
+                col()
+                    .key("sidebar")
+                    .w(206.0)
+                    .h_full()
+                    .padding(18.0)
+                    .gap(6.0)
+                    .fill(rail())
+                    .child(
+                        row()
+                            .h(64.0)
+                            .center_y()
+                            .gap(10.0)
+                            .child(el().size(11.0, 11.0).radius(5.5).fill(accent()))
+                            .child(col().gap(3.0).child(title("Falco")).child(secondary(
+                                &format!(
+                                    "v{} · Unified interface",
                                     if s.snapshot.version.is_empty() {
                                         env!("CARGO_PKG_VERSION")
                                     } else {
                                         &s.snapshot.version
                                     }
-                                ))),
-                        ),
-                )
-                .child(nav("Overview", Page::Home, s.page))
-                .child(nav("Recent", Page::Recent, s.page))
-                .child(nav("Your words", Page::Words, s.page))
-                .child(nav("Settings", Page::Settings, s.page))
-                .child(el().grow(1.0))
-                .child(secondary("LOCAL BY DESIGN")),
-        )
-        .child(
-            col()
-                .key("content-area")
-                .grow(1.0)
-                .h_full()
-                .min_w(0.0)
-                .padding(30.0)
-                .child(
-                    content
-                        .scroll(ScrollSpec {
-                            stick_bottom: false,
-                        })
-                        .grow(1.0)
-                        .min_h(0.0),
-                ),
-        )
+                                ),
+                            ))),
+                    )
+                    .child(nav("Overview", Page::Home, s.page))
+                    .child(nav("Recent", Page::Recent, s.page))
+                    .child(nav("Your words", Page::Words, s.page))
+                    .child(nav("Settings", Page::Settings, s.page))
+                    .child(nav("Usage", Page::Stats, s.page))
+                    .child(nav("Updates & backup", Page::Updates, s.page))
+                    .child(nav("Voice commands", Page::Commands, s.page))
+                    .child(nav("Help", Page::Help, s.page))
+                    .child(el().grow(1.0))
+                    .child(secondary("LOCAL BY DESIGN")),
+            )
+            .child(
+                col()
+                    .key("content-area")
+                    .grow(1.0)
+                    .h_full()
+                    .min_w(0.0)
+                    .padding(30.0)
+                    .child(if has_banner { content.pb(18.0) } else { el() })
+                    .child(
+                        contents
+                            .scroll(ScrollSpec {
+                                stick_bottom: false,
+                            })
+                            .grow(1.0)
+                            .min_h(0.0),
+                    )
+                    .child(
+                        if matches!(s.page, Page::Settings | Page::Stats | Page::Updates)
+                            || !s.preferences.dirty.is_empty()
+                        {
+                            settings_ui::save_bar(s)
+                        } else {
+                            el()
+                        },
+                    ),
+            );
+    rune_kit::root(base, layer)
 }
 fn bridge(request: &Value) -> Result<Value, String> {
     let python = std::env::var("PHONON_PYTHON").unwrap_or_else(|_| "python3".into());
@@ -705,11 +772,30 @@ fn preview(s: &mut State) {
     s.snapshot.refiner_installed = true;
     s.snapshot.auto_space = true;
     s.snapshot.auto_period = true;
+    s.snapshot.settings =
+        serde_json::from_str(include_str!("../../fixtures/settings.json")).unwrap();
+    s.snapshot.word_rows = vec![
+        words_ui::Word {
+            word: "Parakeet".into(),
+            phrases: vec!["para keet".into()],
+        },
+        words_ui::Word {
+            word: "Phonon".into(),
+            phrases: vec![],
+        },
+    ];
+    let snapshot = s.snapshot.clone();
+    settings_ui::sync(s, &snapshot);
     s.snapshot.words = vec!["Parakeet".into(), "Phonon".into()];
     s.snapshot.recent = vec!["A sample dictation for preview.".into()];
 }
 fn main() {
+    if std::env::args().any(|a| a == "--version") {
+        println!("{}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
     let spec = AppSpec {
+        min_size: Some((860.0, 600.0)),
         scenes: &[
             ("preview", preview),
             ("recent", |s: &mut State| {
@@ -724,15 +810,71 @@ fn main() {
                 preview(s);
                 s.page = Page::Settings;
             }),
+            ("refiner", |s: &mut State| {
+                preview(s);
+                s.page = Page::Settings;
+                s.preferences.section = "refiner".into();
+            }),
+            ("select", |s: &mut State| {
+                preview(s);
+                s.page = Page::Settings;
+                s.preferences.open = Some("hotkey".into());
+            }),
+            ("editor", |s: &mut State| {
+                preview(s);
+                s.page = Page::Words;
+                s.vocabulary.editing = true;
+                s.vocabulary.name = TextEdit::new("DeepSeek");
+            }),
+            ("updates", |s: &mut State| {
+                preview(s);
+                s.page = Page::Updates;
+            }),
+            ("usage", |s: &mut State| {
+                preview(s);
+                s.page = Page::Stats;
+            }),
+            ("help", |s: &mut State| {
+                preview(s);
+                s.page = Page::Help;
+            }),
+            ("busy", |s: &mut State| {
+                preview(s);
+                s.page = Page::Settings;
+                s.snapshot.job.busy = true;
+                s.snapshot.job.message = "Downloading the selected model…".into();
+                s.snapshot.job.progress = 42;
+            }),
+            ("error", |s: &mut State| {
+                preview(s);
+                s.page = Page::Words;
+                s.vocabulary.editing = true;
+                s.notice_error = true;
+                s.notice="A pronunciation is already assigned. Edit its existing word first. Your changes are still here.".into();
+            }),
         ],
-        ..AppSpec::new("Falco", (1000.0, 700.0), State::default, view)
+        ..AppSpec::new("Falco", (1100.0, 780.0), initial_state, view)
     };
     if std::env::args().any(|a| matches!(a.as_str(), "--snap" | "--tree" | "--list-scenes")) {
         rune::run(spec);
         return;
     }
-    let app = App::new(spec);
+    let Some(instance) = dashboard_ipc::claim() else {
+        return;
+    };
+    let app = App::new(spec)
+        .tab_visits_controls(true)
+        .keep_running()
+        .on_close(|s, tx| {
+            if s.preferences.dirty.is_empty() && !s.vocabulary.editing {
+                tx.quit();
+            } else {
+                s.notice = "Your unsaved changes were kept while the window was closed.".into();
+                s.notice_error = false;
+            }
+        });
     let handle = app.handle();
+    dashboard_ipc::listen(&instance, handle.clone());
     let (tx, rx) = mpsc::channel();
     let _ = COMMANDS.set(tx);
     std::thread::spawn(move || {
@@ -759,7 +901,20 @@ fn main() {
                 handle.update(move |s: &mut State, _| {
                     s.notice = match result {
                         Ok(ref value) if value.get("ok").and_then(Value::as_bool) == Some(true) => {
-                            if action == "copy" {
+                            s.notice_error = false;
+                            if action == "save_word" || action == "save_snippet" {
+                                s.vocabulary.editing = false;
+                            }
+                            if action == "save_settings" {
+                                s.preferences.job_id = value
+                                    .get("job_id")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or("")
+                                    .into();
+                            }
+                            if let Some(message) = value.get("message").and_then(Value::as_str) {
+                                message.into()
+                            } else if action == "copy" {
                                 "Copied to clipboard.".into()
                             } else if action == "add_word" {
                                 if s.word_input.text.trim() == submitted_word {
@@ -772,18 +927,27 @@ fn main() {
                                 String::new()
                             }
                         }
-                        Ok(value) => value
-                            .get("error")
-                            .and_then(Value::as_str)
-                            .unwrap_or("The action failed.")
-                            .to_string(),
-                        Err(error) => error,
+                        Ok(value) => {
+                            s.notice_error = true;
+                            s.preferences.saving = false;
+                            value
+                                .get("error")
+                                .and_then(Value::as_str)
+                                .unwrap_or("The action failed.")
+                                .to_string()
+                        }
+                        Err(error) => {
+                            s.notice_error = true;
+                            s.preferences.saving = false;
+                            error
+                        }
                     };
                 });
             }
             match bridge(&json!({"action":"snapshot"})) {
                 Ok(value) => match serde_json::from_value::<Snapshot>(value) {
                     Ok(snapshot) => handle.update(move |s: &mut State, _| {
+                        settings_ui::sync(s, &snapshot);
                         s.snapshot = snapshot;
                         s.loaded = true;
                     }),
@@ -832,6 +996,7 @@ mod tests {
         assert!(rt.find("dictation-editor").is_some());
         click(&mut rt, "nav-Words");
         assert_eq!(rt.state.page, Page::Words);
+        click(&mut rt, "new-word");
         assert!(rt.find("word-input").is_some());
     }
 
@@ -864,5 +1029,64 @@ mod tests {
         assert!(rt.find("edit-0").is_none());
         click(&mut rt, "edit-1");
         assert_eq!(rt.state.edit_input.text, "Meet at the café on Monday.");
+    }
+    #[test]
+    fn settings_drafts_survive_polling_failure_and_cancellation() {
+        let mut s = State::default();
+        preview(&mut s);
+        s.preferences
+            .edits
+            .insert("hotkey".into(), TextEdit::new("F10"));
+        s.preferences.dirty.insert("hotkey".into());
+        s.preferences.saving = true;
+        s.preferences.job_id = "new".into();
+        let mut snapshot = s.snapshot.clone();
+        snapshot.job.id = "old".into();
+        settings_ui::sync(&mut s, &snapshot);
+        assert!(s.preferences.saving);
+        assert_eq!(s.preferences.edits["hotkey"].text, "F10");
+        snapshot.job.id = "new".into();
+        snapshot.job.cancelled = true;
+        settings_ui::sync(&mut s, &snapshot);
+        assert!(!s.preferences.saving);
+        assert!(s.preferences.dirty.contains("hotkey"));
+        s.preferences.saving = true;
+        snapshot.job.cancelled = false;
+        snapshot.job.failed = true;
+        settings_ui::sync(&mut s, &snapshot);
+        assert!(s.preferences.dirty.contains("hotkey"));
+        s.preferences.saving = true;
+        snapshot.job.failed = false;
+        settings_ui::sync(&mut s, &snapshot);
+        assert!(s.preferences.dirty.is_empty());
+    }
+    #[test]
+    fn default_route_keeps_general_settings_and_external_routes_keep_drafts() {
+        let mut s = State::default();
+        dashboard_ipc::route(&mut s, &json!({"page":"settings","section":""}));
+        assert_eq!(s.preferences.section, "general");
+        s.preferences.dirty.insert("hotkey".into());
+        dashboard_ipc::route(&mut s, &json!({"page":"words"}));
+        assert_eq!(s.page, Page::Words);
+        assert!(s.preferences.dirty.contains("hotkey"));
+    }
+    #[test]
+    fn settings_search_and_word_editor_use_real_controls() {
+        let mut s = State::default();
+        preview(&mut s);
+        s.page = Page::Settings;
+        let mut rt = Runtime::new(s, view, (860.0, 600.0), Env::new(true, 1.0));
+        rt.frame(0.0);
+        assert!(rt.find("setting-hotkey-trigger").is_some());
+        rt.update(|s, _| s.preferences.search = TextEdit::new("clipboard"));
+        for _ in 0..30 {
+            rt.frame(1.0 / 60.0);
+        }
+        assert!(rt.find("setting-hotkey-trigger").is_none());
+        assert!(rt.find("setting-restore_clipboard").is_some());
+        click(&mut rt, "nav-Words");
+        click(&mut rt, "new-snippet");
+        assert!(rt.state.vocabulary.snippet);
+        assert!(rt.find("snippet-text").is_some());
     }
 }

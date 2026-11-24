@@ -7,8 +7,16 @@ from localdictation import __version__, ui_bridge
 
 
 def test_snapshot_uses_service_and_reports_actual_refiner_state(monkeypatch):
-    cfg = SimpleNamespace(hotkey="F8", toggle_hotkey="F9", mic="", model="parakeet-v3",
-                          ai_corrections=True, auto_space=True, auto_period=False)
+    from localdictation import config, learned_words, secure_input, stats, ui_jobs
+    cfg = config.Settings(hotkey="F8", toggle_hotkey="F9", ai_corrections=True, auto_space=True, auto_period=False)
+    monkeypatch.setattr('localdictation.microphones._sound_devices', lambda: [])
+    monkeypatch.setattr(ui_jobs, 'status', lambda: {})
+    monkeypatch.setattr(learned_words, 'words', lambda: [])
+    monkeypatch.setattr(stats, 'load', lambda: {})
+    monkeypatch.setattr('localdictation.settings_backup.restore_points', lambda: [])
+    monkeypatch.setattr(secure_input, 'running_version', lambda: None)
+    monkeypatch.setattr(secure_input, 'is_installed', lambda: False)
+    monkeypatch.setattr(config, 'load_custom_commands', lambda: {})
     monkeypatch.setattr(ui_bridge.config, "load_config", lambda: cfg)
     monkeypatch.setattr(ui_bridge.ai_download, "is_installed", lambda: False)
     monkeypatch.setattr(ui_bridge.custom_words, "load", lambda: ["Parakeet"])

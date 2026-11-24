@@ -63,6 +63,7 @@ else
 fi
 
 if [[ "$with_rune" == 1 ]]; then
+    install -D -m 644 "$source_dir/rune-overlay/target/release/VERSION" "$pkg/usr/lib/falco/bin/VERSION"
     for binary in phonon-overlay phonon-window; do
         built="$source_dir/rune-overlay/target/release/$binary"
         [[ -x "$built" ]] ||

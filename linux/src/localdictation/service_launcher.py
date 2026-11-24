@@ -481,6 +481,11 @@ def launch_preferences(tab=None):
     GDK_BACKEND back in place of the service's: under XWayland a dropdown
     doesn't open on a click.
     """
+    from .ui_launcher import open_dashboard
+    page = "words" if tab == "words" else "stats" if tab == "stats" else "updates" if tab in ("updates", "backup") else "settings"
+    process = open_dashboard(page, tab if page == "settings" else None)
+    if process is not None:
+        return process
     env = os.environ.copy()
     if USERS_GDK_BACKEND in env:
         users = env.pop(USERS_GDK_BACKEND)
