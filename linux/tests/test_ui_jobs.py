@@ -39,3 +39,9 @@ def test_dead_worker_is_reported_as_interrupted(state, monkeypatch):
     monkeypatch.setattr(ui_jobs.os,'kill',Mock(side_effect=ProcessLookupError))
     status = ui_jobs.status()
     assert not status['busy'] and status['failed']
+
+
+def test_job_status_uses_private_fallback_without_a_login_runtime(monkeypatch, tmp_path):
+    monkeypatch.setattr(ui_jobs.single_instance, 'private_session_dir', lambda: None)
+    monkeypatch.setattr(ui_jobs.single_instance, 'runtime_dir', lambda: str(tmp_path))
+    assert ui_jobs._path() == str(tmp_path / 'dashboard-job.json')

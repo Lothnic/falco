@@ -17,7 +17,7 @@ from . import config, single_instance
 
 
 def _path():
-    return os.path.join(single_instance.private_session_dir(), "dashboard-job.json")
+    return os.path.join(single_instance.private_session_dir() or single_instance.runtime_dir(), "dashboard-job.json")
 
 
 @contextmanager

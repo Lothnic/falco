@@ -142,6 +142,16 @@ def checked_changes(settings, changes):
     for key in ("hotkey", "toggle_hotkey"):
         if key in changes and changes[key] and changes[key] not in config.HOTKEY_CHOICES:
             raise ValueError("Choose a supported dictation shortcut.")
+    from .hotkey_keys import parse_hotkey_combo
+    for key in ("voice_commands_hotkey", "paste_last_hotkey"):
+        if key in changes and changes[key] and parse_hotkey_combo(changes[key]) is None:
+            raise ValueError("Use a shortcut such as Ctrl+Alt+V, or leave it empty to disable it.")
+    shortcut_keys = ("hotkey", "toggle_hotkey", "voice_commands_hotkey", "paste_last_hotkey")
+    if set(shortcut_keys) & changes.keys():
+        shortcuts = [changes.get(key, values[key]).replace(" ", "").upper() for key in shortcut_keys]
+        configured = [key for key in shortcuts if key]
+        if len(configured) != len(set(configured)):
+            raise ValueError("Choose a different shortcut for each action.")
     candidate = replace(settings, **changes)
     if {"model", "device"} & changes.keys() and candidate.model == "parakeet-v3" and candidate.device == "cuda":
         raise ValueError("Parakeet uses CPU or Vulkan. Choose Vulkan for GPU dictation, or Whisper for CUDA.")

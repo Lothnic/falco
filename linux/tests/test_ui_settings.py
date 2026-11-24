@@ -13,6 +13,7 @@ def test_every_setting_has_a_deliberate_ui_or_service_owner():
 
 
 @pytest.mark.parametrize('changes', [
+    {'voice_commands_hotkey': 'not-a-shortcut'}, {'hotkey':'F8','toggle_hotkey':'F8'},
     {'model': 'not-a-model'}, {'auto_space': 'false'}, {'auto_space': 0},
     {'last_update_check': 'tomorrow'}, {'key_delay': True}, {'key_delay': 0},
     {'typing_wpm': 1}, {'indicator_sensitivity': float('nan')},
@@ -110,3 +111,14 @@ def test_rune_launch_is_versioned_and_never_opens_gtk(monkeypatch, tmp_path):
     command = launch.call_args.args[0]
     assert command == [str(executable),'--page','settings','--section','refiner']
     assert 'localdictation.prefs' not in command
+
+
+def test_autostart_is_restored_when_saving_the_config_fails(monkeypatch):
+    monkeypatch.setattr(config, 'load_config', lambda: config.Settings(launch_at_login=False))
+    monkeypatch.setattr(ui_operations, 'download_models', Mock())
+    monkeypatch.setattr(config, 'save_config', Mock(side_effect=OSError('disk full')))
+    autostart = Mock(return_value=True)
+    monkeypatch.setattr('localdictation.autostart.set_autostart', autostart)
+    with pytest.raises(OSError, match='disk full'):
+        ui_operations.save_settings({'launch_at_login':True}, Mock(), Mock(is_set=lambda:False))
+    assert [call.args[0] for call in autostart.call_args_list] == [True,False]
