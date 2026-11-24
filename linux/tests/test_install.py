@@ -133,3 +133,19 @@ esac
     else:
         assert result.returncode != 0
         assert len(requests) == 1
+
+
+def test_rune_launcher_preserves_cli_and_explicit_legacy_mode(install_env):
+    result = run_installer(LOCAL_INSTALLER, install_env)
+    assert result.returncode == 0, result.stderr
+    launcher = (Path(install_env["PHONON_BIN_DIR"]) / "falco").resolve()
+    python = launcher.parent / ".venv/bin/python"
+    python.parent.mkdir(parents=True, exist_ok=True)
+    python.unlink(missing_ok=True)
+    executable(python, '#!/bin/sh\nprintf "%s\\n" "$@"\n')
+    command = subprocess.run([str(launcher), "transcribe", "--help"], env=install_env,
+                             capture_output=True, text=True, check=True)
+    assert command.stdout.splitlines() == ["-m", "localdictation.cli", "transcribe", "--help"]
+    legacy = subprocess.run([str(launcher)], env=install_env | {"FALCO_LEGACY_UI": "1"},
+                            capture_output=True, text=True, check=True)
+    assert legacy.stdout.splitlines() == ["-m", "localdictation.cli"]

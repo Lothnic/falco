@@ -142,13 +142,12 @@ This is an early source package. Its transcription and cleanup components have b
 
 ## Experimental Rune recording overlay
 
-The existing GTK recording indicator remains the default. The optional Rune
-sidecar shows a sound-responsive **Listening** indicator and a **Finishing…**
+With the Rune bundle installed, the Rune recording sidecar shows a sound-responsive **Listening** indicator and a **Finishing…**
 state while a dictation is processed. If the sidecar cannot start or cannot
 show an overlay, the existing GTK recording indicator remains available.
 
 To show provisional words while recording, enable **Show a live transcript
-in Rune** under **Settings → Appearance**. This setting is off by
+transcript** under **Settings → Appearance**. This setting is off by
 default. It uses Parakeet on the CPU and works alongside Type at pause as
 well as with dictations inserted at release. The overlay keeps a short draft
 in memory for the current recording. Falco runs the usual full transcription
@@ -244,8 +243,8 @@ Only one model runs at a time, and the 1B models use less memory than Phonon.
 Choosing a model downloads it; **Automatic** needs Gemma 3 1B downloaded once
 before Hindi dictation uses it.
 
-Hindi dictation also needs a **Whisper** speech model — Parakeet is English
-only. Set the language to Hindi in **Settings → Speech**. The refiner keeps
+Hindi dictation also needs a **Whisper** speech model — Parakeet does not support
+Hindi. Set the language to Hindi in **Settings → Speech**. The refiner keeps
 the transcript's language and script and never translates it.
 
 ## The command line

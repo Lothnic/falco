@@ -115,7 +115,7 @@ cat > "$release_dir/run.sh" <<'RUNNER'
 #!/usr/bin/env bash
 set -e
 release_dir="$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")"
-if [[ -x "$release_dir/bin/phonon-overlay" ]]; then
+if [[ "${FALCO_LEGACY_UI:-0}" != 1 && -x "$release_dir/bin/phonon-overlay" ]]; then
     export PHONON_RUNE_OVERLAY="${PHONON_RUNE_OVERLAY:-$release_dir/bin/phonon-overlay}"
 fi
 exec "$release_dir/.venv/bin/python" -m localdictation.cli "$@"
@@ -127,6 +127,9 @@ if [[ -x "$release_dir/bin/phonon-window" ]]; then
 #!/usr/bin/env bash
 set -e
 release_dir="$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")"
+if (($#)) || [[ "${FALCO_LEGACY_UI:-0}" == 1 ]]; then
+    exec "$release_dir/run.sh" "$@"
+fi
 if ! "$release_dir/.venv/bin/python" -c 'import dbus,sys; sys.exit(0 if dbus.SessionBus().name_has_owner("local.PhononLinux.App") else 1)' 2>/dev/null; then
     "$release_dir/run.sh" </dev/null >/dev/null 2>&1 &
 fi

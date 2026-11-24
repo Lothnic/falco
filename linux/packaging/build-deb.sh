@@ -78,7 +78,7 @@ cat > "$pkg/usr/lib/falco/run.sh" <<'RUNNER'
 #!/usr/bin/env bash
 set -e
 release_dir="/usr/lib/falco"
-if [[ -x "$release_dir/bin/phonon-overlay" ]]; then
+if [[ "${FALCO_LEGACY_UI:-0}" != 1 && -x "$release_dir/bin/phonon-overlay" ]]; then
     export PHONON_RUNE_OVERLAY="${PHONON_RUNE_OVERLAY:-$release_dir/bin/phonon-overlay}"
 fi
 exec "$release_dir/.venv/bin/python" -m localdictation.cli "$@"
@@ -89,10 +89,14 @@ cat > "$pkg/usr/bin/falco" <<'LAUNCHER'
 #!/usr/bin/env bash
 set -e
 release_dir="/usr/lib/falco"
-# The dashboard, when Rune was built into this package; the tray otherwise.
-if [[ -x "$release_dir/bin/phonon-window" ]] &&
-   ! "$release_dir/.venv/bin/python" -c 'import dbus,sys; sys.exit(0 if dbus.SessionBus().name_has_owner("local.PhononLinux.App") else 1)' 2>/dev/null; then
-    "$release_dir/run.sh" </dev/null >/dev/null 2>&1 &
+# Commands stay usable from scripts even when the dashboard is installed.
+if (($#)) || [[ "${FALCO_LEGACY_UI:-0}" == 1 ]]; then
+    exec "$release_dir/run.sh" "$@"
+fi
+if [[ -x "$release_dir/bin/phonon-window" ]]; then
+    if ! "$release_dir/.venv/bin/python" -c 'import dbus,sys; sys.exit(0 if dbus.SessionBus().name_has_owner("local.PhononLinux.App") else 1)' 2>/dev/null; then
+        "$release_dir/run.sh" </dev/null >/dev/null 2>&1 &
+    fi
     export PHONON_PYTHON="$release_dir/.venv/bin/python"
     export PHONON_BRIDGE_MODULE=localdictation.ui_bridge
     exec "$release_dir/bin/phonon-window" "$@"
