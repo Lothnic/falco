@@ -36,5 +36,10 @@
 /research/
 # Research trained on a third-party app's output; kept on the research machines
 /ml/research/distill_v1/
+# Hinglish refiner: generated pairs and adapters stay offline
+/ml/research/hinglish_v0/data/
+/ml/research/hinglish_v0/adapters/
+/ml/research/hinglish_v0/eval/
+/ml/research/hinglish_v0/export/
 # Demo videos go on the GitHub release, not into git
 /demos/
