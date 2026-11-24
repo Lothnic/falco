@@ -667,11 +667,13 @@ def _finish(message, work) -> None:
     message.finishing = True
 
     def run():
+        from . import refiner_preview
         indicator = recording.indicator
         begin = getattr(indicator, "begin_processing", None)
         token = begin() if begin else None
         try:
-            work()
+            with refiner_preview.processing(indicator, token, message):
+                work()
         finally:
             if begin:
                 indicator.end_processing(token)

@@ -7,7 +7,7 @@ import json
 import subprocess
 import sys
 
-from . import ai_download, config, custom_words, history
+from . import __version__, ai_download, config, custom_words, history
 from .dbus_service import DBUS_INTERFACE, DBUS_NAME, DBUS_PATH
 
 
@@ -21,6 +21,7 @@ def _service():
 def snapshot():
     cfg = config.load_config()
     data = {
+        "version": __version__,
         "connected": False,
         "running": False,
         "recording": False,

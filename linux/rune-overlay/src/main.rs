@@ -58,7 +58,7 @@ fn view(s: &Hud, _: &mut Cx<Hud>) -> El {
         .justify_end()
         .pb(10.0)
         .gap(8.0);
-    if !s.processing && !s.draft.is_empty() {
+    if !s.draft.is_empty() {
         overlay = overlay.child(
             row()
                 .max_w(390.0)

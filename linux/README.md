@@ -1,5 +1,7 @@
 # Falco
 
+Current release: **2.5.0 — Refiner edition**.
+
 An experimental community Linux dictation app built on [TuxTalk](https://github.com/ronb1964/TuxTalk), using the separately distributed [Phonon refiner](https://huggingface.co/Infatoshi/phonon-refiner-1.7b) for local transcript cleanup. This is not an official Phonon or TuxTalk release. Its tray and service are adapted from TuxTalk, with a Rune dashboard and recording overlay.
 
 [Website](https://falco.lothnic.dev) · [Main README](../README.md)
@@ -10,6 +12,37 @@ With the refiner active, **Preferences → Advanced → Refiner writing mode**
 offers Minimal, Casual, Formal, AI prompt, and Match the focused app. App
 matching uses the desktop's application ID and defaults to Minimal when
 Falco can't identify the app.
+
+## Falco 2.5 — Refiner edition
+
+**Preferences → Advanced → Accelerate Phonon refinement (experimental)**
+downloads a matching DFlash2 drafter (215 MB) beside the existing refiner.
+It proposes blocks of tokens that Phonon verifies before using them. This
+option is off by default and applies only to Phonon; Gemma and Llama keep
+their usual decoding. Speed varies with the device and transcript length.
+Turn it off if slower. A startup or warm-up failure retries with ordinary
+decoding automatically.
+
+**Show a live transcript in Rune** now also shows the refiner's provisional
+output during **Finishing…**. With **Start typing sooner** and CPU Parakeet,
+refinement streams during speech pauses too. These previews can change as
+more speech arrives. The focused app receives completed text after the usual
+checks; a broken or truncated stream is never typed as a completed rewrite.
+Previewing does not require the drafter.
+
+Both weights stay pinned to the same Phonon revision and are checked against
+their SHA256. No model download is made in the background when upgrading.
+
+In the initial Linux/Vulkan benchmark on an RTX 4060 Laptop GPU (8 GB), the
+drafter reduced total refiner-request time by **32% (1.47× faster)** across
+four synthetic prompts measured twice after warm-up. The 60-token output
+took **198 ms versus 371 ms**, or **1.87× faster**, with identical output.
+The shortest output changed little. These measurements exclude speech
+recognition, cold loading, UI rendering and text insertion; CPU-only and
+very long outputs have not been measured.
+
+[Benchmark results, raw data and reproduction](../docs/benchmarks/README.md) ·
+[2.5.0 release notes](../docs/releases/v2.5.0.md)
 
 ## Quick install
 
@@ -130,8 +163,9 @@ it is cut, and for voice edits.
 With the refiner on, the refined text is worked out during the recording too
 (`refiner_prefetch.py`): the transcript so far is refined in the background at
 each pause, and at release the answer is reused when it was made for exactly
-the finished transcript, character for character. Otherwise the release refines
-as usual, so this can only save time, never change the words.
+the finished transcript, character for character, with the same writing mode,
+engine and vocabulary. If that exact request is still running, release reuses
+its result instead of queuing a duplicate. Otherwise the release refines as usual.
 
 ## Background music
 

@@ -289,6 +289,8 @@ class Settings:
     refiner_mode: str = "minimal"
     # which model cleans up (ai_download.REFINER_MODELS); "auto" by language
     refiner_model: str = "auto"
+    # Optional DFlash2 drafter, downloaded separately; CPU/GPU gains vary.
+    refiner_acceleration: bool = False
     # spoken file names, casing and symbols become code (code_dictation.py)
     developer_mode: str = "auto"
     # add names the refiner's spelling/capital fixes reveal (learned_words.py)

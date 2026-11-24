@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 test("renders the Falco landing page", async () => {
   const html = await readFile(new URL("../.next/server/app/index.html", import.meta.url), "utf8");
 
-  assert.match(html, /<title>Falco: local dictation for Linux<\/title>/i);
+  assert.match(html, /<title>Falco 2\.5\.0: local dictation for Linux<\/title>/i);
   assert.match(html, /data-theme="dark"/);
   assert.match(html, /Speak\.<br\/>It types\.<br\/>Nothing<br\/>/);
   assert.match(html, /Your voice never leaves the room\./);
@@ -32,6 +32,43 @@ test("renders the Falco landing page", async () => {
   assert.doesNotMatch(html, /brew install --cask infatoshi\/tap\/phonon/);
   assert.doesNotMatch(html, /Get Phonon for macOS/);
   assert.doesNotMatch(html, /Windows beta/);
+});
+
+test("publishes versioned refiner benchmarks with their measurement scope", async () => {
+  const html = await readFile(new URL("../.next/server/app/index.html", import.meta.url), "utf8");
+  const text = html.replace(/<[^>]*>/g, "").replace(/<!--.*?-->/g, "");
+  const data = JSON.parse(await readFile(new URL("../public/benchmarks/refiner-2.5-linux.json", import.meta.url), "utf8"));
+  const source = JSON.parse(await readFile(new URL("../../docs/benchmarks/refiner-2.5-linux.json", import.meta.url), "utf8"));
+  assert.deepEqual(data, source);
+  assert.equal(data.baseline.length, 8);
+  assert.equal(data.accelerated.length, 8);
+  for (const [index, row] of data.baseline.entries()) {
+    assert.equal(row.answer, data.accelerated[index].answer);
+  }
+  assert.match(html, /id="benchmarks"/);
+  assert.match(text, /32%/);
+  assert.match(text, /1\.47× faster/);
+  assert.match(text, /371 ms/);
+  assert.match(text, /198 ms/);
+  assert.match(text, /Refiner HTTP requests only/);
+  assert.match(text, /very long outputs and contexts have not been tested/);
+  assert.match(text, /RTX 4060 Laptop GPU, 8 GB/);
+  assert.match(html, /releases\/tag\/v2\.5\.0/);
+  assert.match(text, /215 MB/);
+  assert.doesNotMatch(text, /Specification \/ Falco 0\.1|Rev\. 0\.1|until the first release/);
+});
+
+test("website, app and Rune identify the same release", async () => {
+  const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  const release = await readFile(new URL("../app/release.ts", import.meta.url), "utf8");
+  const app = await readFile(new URL("../../linux/src/localdictation/__init__.py", import.meta.url), "utf8");
+  const pythonPackage = await readFile(new URL("../../linux/pyproject.toml", import.meta.url), "utf8");
+  const rune = await readFile(new URL("../../linux/rune-overlay/Cargo.toml", import.meta.url), "utf8");
+  assert.equal(pkg.version, "2.5.0");
+  assert.ok(release.includes(`version = "${pkg.version}"`));
+  assert.ok(app.includes(`__version__ = "${pkg.version}"`));
+  assert.ok(pythonPackage.includes(`version = "${pkg.version}"`));
+  assert.ok(rune.includes(`version = "${pkg.version}"`));
 });
 
 test("ships a curl-to-bash installer", async () => {

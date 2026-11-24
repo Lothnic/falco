@@ -256,12 +256,14 @@ class CorrectionEngine(AIServer):
                    else _cleanup_messages(_WARM_UP))
         super().__init__(warm_up=warm_up)
 
-    def correct(self, sentence: str, timeout: float = 6.0, *, mode: str = "minimal"):
+    def correct(self, sentence: str, timeout: float = 6.0, *, mode: str = "minimal",
+                on_preview=None):
         """The model's cleaned version of *sentence*, or None on any problem."""
         messages = (_correction_messages(sentence, mode) if _phonon_selected()
                     else _cleanup_messages(sentence))
         return self.ask(messages,
-                        min(2048, max(64, len(sentence) + 32)), timeout, what="Phonon refiner")
+                        min(2048, max(64, len(sentence) + 32)), timeout, what="Phonon refiner",
+                        on_preview=on_preview)
 
     def edit(self, text: str, instruction: str):
         """*text* rewritten as *instruction* says (voice editing), or None on

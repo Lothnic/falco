@@ -106,3 +106,13 @@ def test_preview_uses_the_current_generation_and_a_single_protocol_line():
     line = overlay._send.call_args.args[0]
     assert "\n" not in line
     assert json.loads(line.removeprefix("preview ")) == draft
+
+
+def test_processing_preview_cannot_overwrite_a_new_recording_or_job():
+    overlay = indicator(recording=False, generation=5)
+    overlay._send = Mock()
+    overlay.set_processing_preview(4, 'Old job')
+    overlay.set_processing_preview(5, 'Current job')
+    overlay._recording = True
+    overlay.set_processing_preview(5, 'Recording started')
+    overlay._send.assert_called_once_with('preview "Current job"')

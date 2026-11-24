@@ -27,7 +27,8 @@ def test_the_guess_is_what_gets_typed(monkeypatch):
     _settings(monkeypatch, engine)
     serial = refiner_prefetch.begin()
     thread = refiner_prefetch.offer(
-        "order two boxes", lambda t: dictation_text.refine(t, "minimal"), serial)
+        "order two boxes", lambda t: dictation_text.refine(t, "minimal"), serial,
+        key=dictation_text.refinement_key("minimal"))
     thread.join(timeout=5)
 
     text = dictation_text.prepare_text("order two boxes", True, True, True,

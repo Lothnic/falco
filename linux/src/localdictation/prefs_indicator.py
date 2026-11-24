@@ -72,7 +72,8 @@ class IndicatorSettings(Tab):
         row = self._build_look(grid, 0)
         preview = Gtk.CheckButton(label="Show a live transcript in Rune")
         preview.set_active(self.config.get("rune_live_preview", False))
-        preview.set_tooltip_text("Shows recent words while you speak with Parakeet on the CPU. "
+        preview.set_tooltip_text("Shows recent words while you speak with Parakeet on the CPU, "
+                                "and streams cleanup while the refiner finishes. "
                                  "Uses extra processing during recording.")
         preview.connect("toggled", lambda value: self.update_config(
             "rune_live_preview", value.get_active()))

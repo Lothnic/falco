@@ -57,6 +57,8 @@ HINDI_MODEL = "gemma-3-1b"
 MODEL_REPO = REFINER_MODELS[DEFAULT_MODEL]["repo"]
 MODEL_FILE = REFINER_MODELS[DEFAULT_MODEL]["file"]
 MODEL_SIZE_MB = REFINER_MODELS[DEFAULT_MODEL]["size_mb"]
+DRAFTER_FILE = "phonon-refiner-1.7b-dflash2-drafter.gguf"
+DRAFTER_SIZE_TEXT = "215 MB"
 
 
 def _size_text(mb):
@@ -130,6 +132,20 @@ def model_path(model_id=None):
 def is_installed(model_id=None) -> bool:
     """Engine and the selected model are both downloaded. Cheap: file checks."""
     return os.access(server_binary(), os.X_OK) and model_path(model_id) is not None
+
+
+def drafter_path(model_id=None):
+    """The checked, pinned Phonon drafter, or None; other models have no match."""
+    if (model_id or selected_model()) != "phonon":
+        return None
+    from .download_utils import cached_hub_file
+    return cached_hub_file(MODEL_REPO, DRAFTER_FILE)
+
+
+def make_drafter_download_func():
+    """Fetch only the optional drafter, using the target's revision and checksums."""
+    from .model_helper import make_model_download_func as _hf_download
+    return _hf_download("ai-drafter", repo_id=MODEL_REPO, only_files=(DRAFTER_FILE,))
 
 
 def make_engine_download_func():

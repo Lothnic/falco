@@ -162,6 +162,10 @@ class AdvancedTab(Tab):
         grid.attach(model, 1, row, 1, 1)
         row += 1
 
+        from .prefs_refiner import acceleration_option
+        grid.attach(acceleration_option(self), 0, row, 2, 1)
+        row += 1
+
         dev = dropdown(Gtk.ComboBoxText())
         for key, title in DEVELOPER_MODES.items():
             dev.append(key, title)

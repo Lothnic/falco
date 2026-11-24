@@ -1,4 +1,4 @@
-# src/tuxtalk: where things are
+# Falco 2.5: where things are
 
 One line per group, its main file first. Each module's docstring says what it
 is for.
@@ -29,6 +29,11 @@ is for.
 - **Speech engines:** `engine.py`, with `parakeet_engine.py`, `parakeet_gpu.py`,
   `parakeet_ultra.py` (the Parakeet download), `whisper_vulkan.py` (the Vulkan
   engine) and `model_helper.py` (downloading and loading the models).
+- **Refinement:** `ai_cleanup.py` and `ai_server.py` (the local model and optional
+  DFlash2 launch), `ai_download.py` and `hub_pins.py` (pinned, checked weights),
+  `ai_stream.py` (SSE and complete-answer validation), `refiner_prefetch.py`
+  (reuse during pauses), `refiner_preview.py` (provisional Rune text) and
+  `prefs_refiner.py` (the optional acceleration download).
 - **Voice commands:** `voice_actions.py`, with `command_phrases.py` (the one
   parser), `voice_commands.py` (undo, "fix that word", select and move),
   `commands_reference.py` (the table Help shows), and one file per kind of

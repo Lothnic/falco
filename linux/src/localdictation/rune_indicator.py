@@ -167,6 +167,13 @@ class RuneIndicator:
                 self._generation += 1
                 self._send("hide")
 
+    def set_processing_preview(self, generation, draft):
+        """Only the current finishing job may display provisional text."""
+        with self._lock:
+            if (generation is not None and not self._recording
+                    and self._generation == generation):
+                self._send("preview " + json.dumps(draft, ensure_ascii=False))
+
     def set_audio_level(self, level):
         self.fallback.set_audio_level(level)
         now = time.monotonic()

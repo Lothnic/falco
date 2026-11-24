@@ -1,5 +1,6 @@
 import shutil
 import subprocess
+import time
 from types import SimpleNamespace
 
 import gi
@@ -63,7 +64,12 @@ def test_setup_verifies_text_arrives_in_the_field(check, monkeypatch):
 
     subprocess.run(["xdotool", "type", "--delay", "0", "This is my first dictation."],
                    check=True, timeout=5)
-    drain_gtk()
+    # XTest delivery is asynchronous: xdotool can exit before GTK has any
+    # pending events, especially after the other window tests have run.
+    deadline = time.monotonic() + 2
+    while check.entry.get_text() != "This is my first dictation." and time.monotonic() < deadline:
+        drain_gtk()
+        time.sleep(0.005)
     assert check.entry.get_text() == "This is my first dictation."
     assert check.phase == "verified"
 

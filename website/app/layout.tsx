@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Archivo, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+import { version } from "./release";
 
 const archivo = Archivo({
   variable: "--font-archivo",
@@ -18,13 +19,13 @@ const plexMono = IBM_Plex_Mono({
 const themeScript = `(function(){try{var t=localStorage.getItem("falco-theme");if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t}}catch(e){}})();`;
 
 export const metadata: Metadata = {
-  title: "Falco: local dictation for Linux",
+  title: `Falco ${version}: local dictation for Linux`,
   description:
-    "Hold a key, speak, and clean text appears in the app you are using. Falco runs speech recognition and optional cleanup on your Linux machine.",
+    "Falco 2.5 Refiner edition: local dictation for Linux with optional Phonon acceleration and streamed cleanup previews. Audio and text stay on your machine.",
   openGraph: {
-    title: "Falco: local dictation for Linux",
+    title: `Falco ${version}: local dictation for Linux`,
     description:
-      "Local dictation for Linux. Hold a key, speak, and the words land in the focused app.",
+      "The Refiner edition adds optional Phonon acceleration and streamed cleanup previews. See the initial Linux benchmark and install Falco 2.5.",
     type: "website",
   },
 };

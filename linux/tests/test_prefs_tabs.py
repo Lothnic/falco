@@ -28,7 +28,8 @@ def _no_model_lookup(monkeypatch):
     """Answer "which models are on disk" without the download stack."""
     if "huggingface_hub" not in sys.modules:
         monkeypatch.setitem(sys.modules, "huggingface_hub", MagicMock())
-    from localdictation import parakeet_engine
+    from localdictation import ai_download, parakeet_engine
+    monkeypatch.setattr(ai_download, "is_installed", lambda *a: False)
     monkeypatch.setattr(parakeet_engine, "cached_model_dir", lambda *a, **k: None,
                         raising=False)
 

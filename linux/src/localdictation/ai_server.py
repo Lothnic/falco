@@ -12,6 +12,7 @@ import time
 import urllib.request
 
 from . import ai_download, engine_process
+from .ai_stream import PreviewCancelled, notify_preview, read_chat
 from .logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -44,6 +45,12 @@ class AIServer:
     """
 
     def __init__(self, warm_up):
+        from .config import load_config
+        cfg = load_config()
+        self._model_id = ai_download.selected_model(cfg)
+        self._acceleration = bool(cfg.refiner_acceleration)
+        self._draft_disabled = False
+        self._using_drafter = False
         self._warm_up = warm_up
         self._proc = None
         self._port = None
@@ -65,7 +72,7 @@ class AIServer:
             self._failed_at = None
             if self._proc and self._proc.poll() is None:
                 return
-            if not ai_download.is_installed():
+            if not ai_download.is_installed(self._model_id):
                 logger.warning("The AI is on but its download is missing; skipping")
                 return
             kill_orphaned_engines()
@@ -77,18 +84,26 @@ class AIServer:
             # own programs can read either, and are trusted anyway.
             self._key = secrets.token_hex(16)
             binary = ai_download.server_binary()
+            draft = (ai_download.drafter_path(self._model_id)
+                     if self._acceleration and not self._draft_disabled else None)
+            self._using_drafter = draft is not None
+            draft_args = (["-md", draft, "--spec-type", "draft-dflash",
+                           "--spec-draft-n-max", "7", "--spec-draft-n-min", "0",
+                           "-ngld", "99", "-fa", "on"] if draft else [])
             command, env = engine_process.parent_death_command(
                 # 4096 tokens: room for a voice edit (ai_cleanup.MAX_EDIT_CHARS
                 # of text and the rewrite); one slot, so it is all one request's.
-                [binary, "-m", ai_download.model_path(), "--host", "127.0.0.1",
+                [binary, "-m", ai_download.model_path(self._model_id), "--host", "127.0.0.1",
                  "--port", str(self._port),
-                 "-c", "4096", "-np", "1", "--jinja", "-ngl", "99", "--no-webui"],
+                 "-c", "4096", "-np", "1", "--jinja", "-ngl", "99", "--no-webui"] + draft_args,
                 {**os.environ, "LD_LIBRARY_PATH": os.path.dirname(binary),
                  "LLAMA_API_KEY": self._key})
             proc = self._proc = self._launcher.popen(command, stdout=subprocess.DEVNULL,
                                                      stderr=subprocess.PIPE, env=env)
             output = engine_process.OutputTail(proc.stderr)
             logger.info(f"AI engine starting (pid {proc.pid})")
+            if draft:
+                logger.info("Phonon DFlash2 acceleration enabled")
         # The process started here, not self._proc read again: a stop() just
         # after the lock is let go would hand the waiter None.
         threading.Thread(target=self._wait_until_ready, args=(proc, output), daemon=True).start()
@@ -110,6 +125,9 @@ class AIServer:
                 continue
             started = time.time()
             answered = self._post(self._warm_up, 200, timeout=60, what="AI warm-up")
+            if answered is None and self._using_drafter:
+                self._start_failed(proc, "Accelerated refiner warm-up failed")
+                return
             with self._lock:
                 if self._proc is not proc:
                     return              # stopped during the warm-up: no answer was expected
@@ -125,6 +143,8 @@ class AIServer:
         """Let go of *proc*, a server that didn't come up, unless it was
         stopped or replaced meanwhile. Kept, it would hold its memory all
         session and never count as ready, and nothing would start another."""
+        if self._fallback_from_drafter(proc):
+            return
         with self._lock:
             if self._proc is not proc:
                 return
@@ -137,6 +157,20 @@ class AIServer:
                          "tries again")
         else:
             logger.error(f"{why}; not trying again until the AI is turned off and on")
+
+    def _fallback_from_drafter(self, proc):
+        """Retry once without drafting if acceleration cannot run on this device."""
+        with self._lock:
+            if self._stopped or self._proc is not proc or not self._using_drafter:
+                return False
+            self._proc = None
+            self._ready.clear()
+            self._draft_disabled = True
+            self._using_drafter = False
+        logger.warning("Accelerated refiner failed; restarting with ordinary decoding")
+        engine_process.stop(proc)
+        self.start()
+        return True
 
     def stop(self):
         """Stop the server for good; a start still under way gives up."""
@@ -162,6 +196,8 @@ class AIServer:
         if not self._ready.is_set() or proc.poll() is None:
             return
         logger.warning(f"AI engine exited (code {proc.returncode}); starting it again")
+        if self._fallback_from_drafter(proc):
+            return
         self._ready.clear()
         self.start(_replacing=proc)
 
@@ -175,23 +211,27 @@ class AIServer:
         self._restart_if_exited()
         return self._ready.is_set()
 
-    def ask(self, messages, max_tokens, timeout, what):
+    def ask(self, messages, max_tokens, timeout, what, on_preview=None):
         """The answer's text to the chat *messages*, or None before the
         server is ready or on any problem. *what* names the request in the log."""
         if not self.is_ready():
             return None
-        return self._post(messages, max_tokens, timeout, what)
+        return self._post(messages, max_tokens, timeout, what, on_preview=on_preview)
 
-    def _post(self, messages, max_tokens, timeout, what):
+    def _post(self, messages, max_tokens, timeout, what, on_preview=None):
         """Send a chat request; the answer's text, or None on any problem."""
         body = {"messages": messages, "temperature": 0, "max_tokens": max_tokens,
                 "cache_prompt": True, "repeat_penalty": 1.0, "chat_template_kwargs": {"enable_thinking": False}}
+        if on_preview is not None:
+            body["stream"] = True
         request = urllib.request.Request(
             f"http://127.0.0.1:{self._port}/v1/chat/completions",
             data=json.dumps(body).encode(),
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {self._key}"})
         try:
             with engine_process.open_local(request, timeout=timeout) as response:
+                if on_preview is not None:
+                    return read_chat(response, on_preview, timeout)
                 choice = json.load(response)["choices"][0]
             if choice.get("finish_reason") == "length":
                 # Cut off at max_tokens: half a rewrite must never replace the
@@ -199,6 +239,12 @@ class AIServer:
                 logger.warning(f"{what}: the answer was cut off; not using it")
                 return None
             return choice["message"]["content"].strip()
+        except PreviewCancelled:
+            return None
         except Exception as e:
-            logger.warning(f"{what} request failed: {e}")
+            logger.warning(f"{what} request failed ({type(e).__name__})")
+            if on_preview is not None and notify_preview(on_preview, "") is not False:
+                # A lost stream must not turn a partial rewrite into the final
+                # dictation. Retry through the original complete-response path.
+                return self._post(messages, max_tokens, timeout, what)
             return None

@@ -1,11 +1,14 @@
 import CopyCommand from "./CopyCommand";
 import DictationDemo from "./DictationDemo";
 import ThemeToggle from "./ThemeToggle";
+import RefinerBenchmarks from "./RefinerBenchmarks";
+import { releaseName, releaseUrl, version } from "./release";
 
 const nav = [
   { href: "#signal", label: "Signal path" },
   { href: "#capabilities", label: "Capabilities" },
   { href: "#privacy", label: "Privacy" },
+  { href: "#benchmarks", label: "Benchmarks" },
   { href: "#install", label: "Install" },
 ];
 
@@ -30,7 +33,7 @@ const stages = [
   {
     label: "03 / Refine",
     title: "Fillers out. Meaning kept.",
-    body: "Optional local cleanup fixes self-corrections, removes false starts, and tidies capitalization. The refiner is English-only.",
+    body: "Optional local cleanup fixes self-corrections and false starts. Falco 2.5 adds Phonon drafter acceleration and streamed previews. Phonon is English-only.",
   },
   {
     label: "04 / Insert",
@@ -52,8 +55,8 @@ const capabilities = [
   },
   {
     title: "Optional cleanup",
-    body: "The local Phonon refiner removes fillers and false starts. Dictation works without it, too.",
-    meta: "English · ~1 GB",
+    body: "The local Phonon refiner removes fillers and false starts, with optional acceleration and streamed Rune previews. Dictation works without it, too.",
+    meta: "Phonon · Optional acceleration",
   },
   {
     title: "Your vocabulary",
@@ -92,7 +95,7 @@ const processRows = [
   {
     index: "03",
     title: "Release",
-    body: "Let the key go. Recognition and optional cleanup run before anything is inserted.",
+    body: "Let the key go. Falco finishes recognition and optional cleanup, reusing matching work already done during pauses.",
     bar: "Recognise + clean",
     start: "60%",
     width: "24%",
@@ -113,6 +116,7 @@ const specs = [
   ["Optional UI", "Rust 1.99.1+ for Rune"],
   ["Speech model", "About 670 MB for Parakeet Ultra v3"],
   ["Optional refiner", "About 1 GB extra, including its engine"],
+  ["Optional acceleration", "215 MB extra for the Phonon drafter"],
   ["Account", "None"],
   ["License", "MIT for linux/ · upstream GPL-3.0"],
 ];
@@ -478,7 +482,7 @@ export default function Home() {
             <div className="hero-meta">
               <p>
                 <span className="meta-rule" aria-hidden="true" />
-                Voice input · Linux · Wayland + X11
+                Falco {version} · {releaseName}
               </p>
               <p className="hero-meta-right">
                 Fig. 01 — Signal path
@@ -510,7 +514,7 @@ export default function Home() {
                     Read the Linux guide
                   </a>
                 </div>
-                <p className="hero-note">Free · MIT · No account</p>
+                <p className="hero-note">Free · MIT · No account · <a href={releaseUrl}>What’s new in {version} ↗</a></p>
               </div>
 
               <figure className="hero-figure">
@@ -521,7 +525,7 @@ export default function Home() {
                 <KeycapArt />
                 <figcaption>
                   <span>Hold / speak / release</span>
-                  <span>Rev. 0.1</span>
+                  <span>Rev. {version}</span>
                 </figcaption>
               </figure>
             </div>
@@ -737,10 +741,12 @@ export default function Home() {
           </div>
         </section>
 
+        <RefinerBenchmarks />
+
         <section className="section install" id="install">
           <div className="shell">
             <div className="section-head">
-              <p className="eyebrow">05 / Installation</p>
+              <p className="eyebrow">06 / Installation</p>
               <h2>
                 A Linux desktop.
                 <br />
@@ -760,7 +766,7 @@ export default function Home() {
                   index="01"
                   label="Quick install"
                   command="curl -fsSL https://falco.lothnic.dev/install.sh | bash"
-                  note="Installs system dependencies with sudo, then the latest Falco release in your user account. The installer uses main until the first release."
+                  note="Installs system dependencies with sudo, then the latest Falco release in your user account. Rerun the installer to upgrade."
                 />
                 <CopyCommand
                   index="02"
@@ -782,7 +788,7 @@ export default function Home() {
 
               <aside className="spec-panel panel">
                 <div className="panel-meta">
-                  <span>Specification / Falco 0.1</span>
+                  <span>Specification / Falco {version}</span>
                   <span>Sheet A-001</span>
                 </div>
                 <dl className="spec-list">
@@ -808,7 +814,7 @@ export default function Home() {
         <section className="closing">
           <div className="shell closing-inner">
             <div>
-              <p className="eyebrow">06 / Ready</p>
+              <p className="eyebrow">07 / Ready</p>
               <h2>
                 Stop typing.
                 <br />
@@ -841,6 +847,8 @@ export default function Home() {
             <nav className="footer-links" aria-label="Project links">
               <a href={repo}>GitHub repository</a>
               <a href={`${repo}/blob/main/linux/README.md`}>Linux guide</a>
+              <a href="#benchmarks">Linux benchmarks</a>
+              <a href={releaseUrl}>Falco {version} release</a>
               <a href="https://huggingface.co/Infatoshi/phonon-refiner-1.7b">Refiner model</a>
               <a href="https://github.com/Infatoshi/phonon">Upstream Phonon</a>
             </nav>
@@ -861,7 +869,7 @@ export default function Home() {
             </div>
             <div>
               <span>Revision</span>
-              <strong>0.1</strong>
+              <strong>{version}</strong>
             </div>
             <div>
               <span>Scale</span>

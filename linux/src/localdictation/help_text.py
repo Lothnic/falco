@@ -366,10 +366,17 @@ One box at a time, each box a dictation of its own:
 ### Optional: cleaner text (Preferences → Advanced)
   • <b>Remove "um", "uh" and accidentally repeated words.</b> Instant, nothing
     to download.
-  • <b>Fix self-corrections with AI.</b> "meet at 3, no wait, 4" types "meet at 4".
-    The AI runs on your computer (a one-time {AI_SIZE_TEXT} download) and only sees
-    sentences with a correction phrase. If its answer changes anything besides the
-    correction, your words are typed exactly as you said them.
+  • <b>Refine dictation with Phonon’s local model.</b> Cleans up the full transcript,
+    including fillers and self-corrections, on your computer. The first use downloads
+    about {AI_SIZE_TEXT} including its engine. Phonon is for English; choose a
+    Hindi-capable refiner in the model list for Hindi or Hinglish.
+  • <b>Falco 2.5: Accelerate Phonon refinement (experimental).</b> Adds an optional
+    215 MB download. Speed depends on the hardware; turn it off if slower. Falco
+    retries ordinary decoding if acceleration cannot start.
+  • <b>Show a live transcript in Rune</b> under <b>Audio → Customize</b> also shows
+    provisional cleanup while finishing. With <b>Start typing sooner</b> and CPU
+    Parakeet, refinement can run during speech pauses too. Only completed, checked
+    text is typed into your app; a preview can change as you continue speaking.
   • Smart quotes, the closing period and spacing are under Fine-tuning.
 
 ### TuxTalk Labs

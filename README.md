@@ -1,5 +1,7 @@
 # Falco
 
+[**2.5.0 — Refiner edition**](https://github.com/Lothnic/falco/releases/tag/v2.5.0)
+
 Falco is a local voice dictation app for Linux. Hold a dictation key, speak,
 and the text is typed into the application you are using. Speech recognition
 runs on your machine, with optional local transcript cleanup; models are
@@ -42,12 +44,44 @@ official Phonon or TuxTalk release.
   key only transcribes the last one. A long dictation no longer means a long
   wait. The text is spliced at the pauses you made, and the whole recording is
   transcribed as before if a splice can't be vouched for. With the refiner on,
-  the cleaned-up text is worked out during the recording too, so the refiner
-  no longer runs after the key.
+  the cleaned-up text is worked out during the recording too, and reused at
+  release when the transcript and refinement settings match.
 - **A command line.** `falco transcribe talk.mp4` writes a file's text or
   subtitles, with no window and no running app, so it works in a script or
   over SSH. `falco --toggle` and `falco --start`/`--stop` drive the running
   app.
+
+## Falco 2.5 — Refiner edition
+
+Falco **2.5 — Refiner edition** adds optional Phonon acceleration and streamed
+cleanup previews. In **Preferences → Advanced**, enable **Accelerate Phonon
+refinement (experimental)** to download its matching DFlash2 drafter (215 MB).
+Speed depends on the hardware; ordinary decoding remains available and is
+used automatically if acceleration fails to start.
+
+Enable **Show a live transcript in Rune** under **Preferences → Audio →
+Customize** to see cleanup arrive while finishing. Also enable **Start typing
+sooner** for refinement during speech pauses with CPU Parakeet. Preview text
+can change as you continue speaking; only completed, checked text is typed
+into the focused app.
+
+## Initial Linux benchmark
+
+With the optional drafter enabled, Falco 2.5 used **32% less total
+refiner-request time (1.47× faster)** than the v2.4.2 decoding baseline in
+this initial test. The longest measured output, 60 tokens, finished in
+**198 ms versus 371 ms (1.87× faster)**. Very short output changed little.
+
+![Linux refiner latency with and without the DFlash2 drafter](docs/benchmarks/refiner-2.5-linux.svg)
+
+Measured on Linux/Vulkan with an **RTX 4060 Laptop GPU (8 GB)**, using the
+same pinned Phonon target and llama.cpp b12210. Four synthetic English
+prompts, two measured runs each after warm-up; outputs matched. Streamed
+text first arrived in approximately **47–51 ms**, before overlay rendering.
+
+These are **refiner-only** timings, excluding speech recognition, model loading,
+UI rendering and text insertion. CPU-only and very long outputs have not yet
+been measured. [Results, raw data and reproduction instructions](docs/benchmarks/README.md).
 
 ## How it works
 

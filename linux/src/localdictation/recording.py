@@ -394,15 +394,20 @@ def _prefetch_refinement(rec):
     and most dictations end on a pause, so the guess is usually the finished
     text. A wrong guess costs nothing but processor time: the release compares
     the text character for character before using it."""
-    from . import dictation_text, refiner_prefetch
+    from . import dictation_text, refiner_prefetch, refiner_preview
     if not (live.ai_corrections and live.ai_engine is not None):
         return
     text = rec.streamer.committed.strip() if rec.streamer is not None else ""
     if not text:
         return
     mode = live.refiner_mode
+    if mode == "auto":
+        from .window_classes import refiner_mode_for_window
+        mode = refiner_mode_for_window(focused_window.window_class())
+    preview = refiner_preview.for_recording(rec, indicator, text)
     refiner_prefetch.offer(
-        text, lambda said: dictation_text.refine(said, mode), rec.stream_serial)
+        text, lambda said: dictation_text.refine(said, mode, on_preview=preview),
+        rec.stream_serial, key=dictation_text.refinement_key(mode))
 
 
 def _stream_slice(rec, span):

@@ -22,6 +22,7 @@ enum Page {
 #[derive(Clone, Default, Deserialize)]
 #[serde(default)]
 struct Snapshot {
+    version: String,
     connected: bool,
     running: bool,
     recording: bool,
@@ -631,7 +632,14 @@ fn view(s: &State, _: &mut Cx<State>) -> El {
                             col()
                                 .gap(3.0)
                                 .child(title("Falco"))
-                                .child(secondary("Voice typing")),
+                                .child(secondary(&format!(
+                                    "v{} · Refiner edition",
+                                    if s.snapshot.version.is_empty() {
+                                        env!("CARGO_PKG_VERSION")
+                                    } else {
+                                        &s.snapshot.version
+                                    }
+                                ))),
                         ),
                 )
                 .child(nav("Overview", Page::Home, s.page))

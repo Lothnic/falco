@@ -18,6 +18,7 @@ committed. A guess that misses costs processor time during the recording and
 nothing else, so it is made once per pause and only while the worker is idle.
 """
 import threading
+import time
 
 from .logger import setup_logger
 
@@ -26,6 +27,8 @@ logger = setup_logger(__name__)
 # One dictation at a time: the recording in progress. A dictation that starts
 # replaces whatever the last one was thinking about.
 _lock = threading.Lock()
+_changed = threading.Condition(_lock)
+_key = None
 _asked = ""          # the transcript the answer below belongs to
 _answer = None       # its refinement, or None while it isn't known
 _running = False     # whether a refine is under way
@@ -39,10 +42,11 @@ def begin() -> int:
     with _lock:
         _asked, _answer = "", None
         _serial += 1
+        _changed.notify_all()
         return _serial
 
 
-def offer(text: str, refine, serial: int):
+def offer(text: str, refine, serial: int, *, key=None):
     """Work out the refined *text* in the background, for a dictation whose
     serial is *serial*. *refine* is how to ask (dictation_text's own call,
     so the prompt is exactly the release's). Nothing when the text is empty,
@@ -50,14 +54,15 @@ def offer(text: str, refine, serial: int):
 
     Returns the thread doing the work, or None when nothing was started; a
     caller that must know the guess is finished (a test) can join it."""
-    global _asked, _answer, _running
+    global _asked, _answer, _running, _key
     text = (text or "").strip()
     if not text:
         return None
     with _lock:
-        if serial != _serial or _running or text == _asked:
+        if serial != _serial or _running or (text == _asked and key == _key):
             return None
         _asked, _answer, _running = text, None, True
+        _key = key
 
     def run():
         global _answer, _running
@@ -74,21 +79,26 @@ def offer(text: str, refine, serial: int):
                 if serial == _serial and _asked == text:
                     _answer = answer
                 _running = False
+                _changed.notify_all()
 
     thread = threading.Thread(target=run, daemon=True, name="tt-refine-guess")
     thread.start()
     return thread
 
 
-def take(text: str, serial: int):
+def take(text: str, serial: int, *, key=None, wait=0):
     """The guessed refinement of *text*, or None when there is none for
     exactly this text. *serial* is the recording's (begin())."""
-    with _lock:
-        if serial != _serial:
-            return None
-        if (text or "").strip() != _asked or not _answer:
-            return None
-        return _answer
+    deadline = time.monotonic() + wait
+    with _changed:
+        while serial == _serial and (text or "").strip() == _asked and key == _key:
+            if _answer:
+                return _answer
+            remaining = deadline - time.monotonic()
+            if not _running or remaining <= 0:
+                break
+            _changed.wait(remaining)
+        return None
 
 
 def waiting(serial: int) -> bool:

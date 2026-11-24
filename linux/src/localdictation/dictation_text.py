@@ -85,18 +85,29 @@ def _carry_on_sentence(text):
     return text
 
 
-def refine(raw: str, refiner_mode: str = "minimal"):
+def refinement_key(mode):
+    """A prefetch belongs to its writing mode, engine and vocabulary too."""
+    return mode, id(live.ai_engine), tuple(live.words)
+
+
+def refine(raw: str, refiner_mode: str = "minimal", on_preview=None):
     """*raw* as the refiner rewrites it, or None when it couldn't or its answer
     is not plausible: an empty answer, or one over twice the transcript's
     length or, past 8 words, under 0.4 of it. The same check both the release
     and the guess made while recording use, so a prefetched answer is exactly
     the one that would have been asked for."""
+    from . import refiner_preview
+    callback = on_preview if on_preview is not None else refiner_preview.current()
+    options = {"on_preview": callback} if callback is not None else {}
     candidate = live.ai_engine.correct(raw, timeout=max(20.0, len(raw) / 20),
-                                       mode=refiner_mode)
+                                       mode=refiner_mode, **options)
     before = len(raw.split())
     after = len(candidate.split()) if candidate else 0
     if candidate and after <= 2 * before and (before <= 8 or after >= 0.4 * before):
         return candidate
+    if callback is not None:
+        from .ai_stream import notify_preview
+        notify_preview(callback, "")
     return None
 
 
@@ -139,7 +150,9 @@ def prepare_text(raw: str, smart_quotes: bool, auto_period: bool, auto_space: bo
     if ai and live.ai_corrections and live.ai_engine is not None and raw.strip():
         # A guess made while the speaker talked (refiner_prefetch) is used when
         # it was made for exactly this text; otherwise it is refined now.
-        candidate = refiner_prefetch.take(raw, serial) if serial is not None else None
+        candidate = (refiner_prefetch.take(raw, serial, key=refinement_key(refiner_mode),
+                                           wait=max(20.0, len(raw) / 20))
+                     if serial is not None else None)
         if candidate is not None:
             logger.info("Refiner: used the refinement made while recording")
         else:

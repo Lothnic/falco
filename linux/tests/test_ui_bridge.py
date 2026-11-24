@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
-from localdictation import ui_bridge
+from localdictation import __version__, ui_bridge
 
 
 def test_snapshot_uses_service_and_reports_actual_refiner_state(monkeypatch):
@@ -17,6 +17,7 @@ def test_snapshot_uses_service_and_reports_actual_refiner_state(monkeypatch):
     service.GetStatus.return_value = {"service_running": True, "recording": False, "engine": "CPU"}
     monkeypatch.setattr(ui_bridge, "_service", lambda: service)
     data = ui_bridge.snapshot()
+    assert data["version"] == __version__
     assert data["connected"] and data["running"]
     assert data["refiner"] and not data["refiner_installed"]
     assert data["recent"] == ["Example"] and data["words"] == ["Parakeet"]

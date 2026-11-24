@@ -1,0 +1,351 @@
+{
+  "draft_tokens": 7,
+  "baseline": [
+    {
+      "round": 1,
+      "prompt": 0,
+      "answer": "Send the report on Thursday morning.",
+      "complete_ms": 90.95,
+      "first_text_ms": 47.33,
+      "stream_ms": 85.05,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 105,
+        "prompt_ms": 46.949,
+        "prompt_per_token_ms": 0.4471333333333333,
+        "prompt_per_second": 2236.4693603697633,
+        "predicted_n": 8,
+        "predicted_ms": 38.247,
+        "predicted_per_token_ms": 5.463857142857143,
+        "predicted_per_second": 183.02089052736162
+      }
+    },
+    {
+      "round": 1,
+      "prompt": 1,
+      "answer": "The build is ready and the tests are passing.",
+      "complete_ms": 103.01,
+      "first_text_ms": 48.39,
+      "stream_ms": 102.22,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 104,
+        "prompt_ms": 46.294,
+        "prompt_per_token_ms": 0.44513461538461535,
+        "prompt_per_second": 2246.511426966778,
+        "predicted_n": 11,
+        "predicted_ms": 54.35,
+        "predicted_per_token_ms": 5.4350000000000005,
+        "predicted_per_second": 183.99264029438822
+      }
+    },
+    {
+      "round": 1,
+      "prompt": 2,
+      "answer": "Please update the README with the installation steps and mention that dictation runs locally after the models are downloaded.",
+      "complete_ms": 163.93,
+      "first_text_ms": 49.21,
+      "stream_ms": 169.95,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 125,
+        "prompt_ms": 45.74,
+        "prompt_per_token_ms": 0.36592,
+        "prompt_per_second": 2732.8377787494533,
+        "predicted_n": 23,
+        "predicted_ms": 116.331,
+        "predicted_per_token_ms": 5.287772727272728,
+        "predicted_per_second": 189.11554099938968
+      }
+    },
+    {
+      "round": 1,
+      "prompt": 3,
+      "answer": "For the next release we need to finish the streaming refiner, then test the download process on a clean machine, and check that the overlay still works if someone starts a second recording while the first one is finishing. Also make sure cancelling a recording never types an incomplete response into the editor.",
+      "complete_ms": 371.63,
+      "first_text_ms": 47.61,
+      "stream_ms": 361.85,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 149,
+        "prompt_ms": 46.526,
+        "prompt_per_token_ms": 0.312255033557047,
+        "prompt_per_second": 3202.5104242788975,
+        "predicted_n": 60,
+        "predicted_ms": 323.191,
+        "predicted_per_token_ms": 5.477813559322033,
+        "predicted_per_second": 182.55458846316884
+      }
+    },
+    {
+      "round": 2,
+      "prompt": 0,
+      "answer": "Send the report on Thursday morning.",
+      "complete_ms": 84.98,
+      "first_text_ms": 46.73,
+      "stream_ms": 86.02,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 105,
+        "prompt_ms": 45.334,
+        "prompt_per_token_ms": 0.431752380952381,
+        "prompt_per_second": 2316.142409670446,
+        "predicted_n": 8,
+        "predicted_ms": 37.819,
+        "predicted_per_token_ms": 5.4027142857142865,
+        "predicted_per_second": 185.09214944868978
+      }
+    },
+    {
+      "round": 2,
+      "prompt": 1,
+      "answer": "The build is ready and the tests are passing.",
+      "complete_ms": 103.27,
+      "first_text_ms": 47.01,
+      "stream_ms": 102.18,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 104,
+        "prompt_ms": 46.348,
+        "prompt_per_token_ms": 0.4456538461538461,
+        "prompt_per_second": 2243.894019159403,
+        "predicted_n": 11,
+        "predicted_ms": 55.405,
+        "predicted_per_token_ms": 5.5405,
+        "predicted_per_second": 180.4891255301868
+      }
+    },
+    {
+      "round": 2,
+      "prompt": 2,
+      "answer": "Please update the README with the installation steps and mention that dictation runs locally after the models are downloaded.",
+      "complete_ms": 168.31,
+      "first_text_ms": 49.77,
+      "stream_ms": 168.92,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 125,
+        "prompt_ms": 46.408,
+        "prompt_per_token_ms": 0.371264,
+        "prompt_per_second": 2693.5011204964662,
+        "predicted_n": 23,
+        "predicted_ms": 120.227,
+        "predicted_per_token_ms": 5.464863636363637,
+        "predicted_per_second": 182.98718257962022
+      }
+    },
+    {
+      "round": 2,
+      "prompt": 3,
+      "answer": "For the next release we need to finish the streaming refiner, then test the download process on a clean machine, and check that the overlay still works if someone starts a second recording while the first one is finishing. Also make sure cancelling a recording never types an incomplete response into the editor.",
+      "complete_ms": 369.77,
+      "first_text_ms": 47.69,
+      "stream_ms": 367.57,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 149,
+        "prompt_ms": 46.259,
+        "prompt_per_token_ms": 0.31046308724832217,
+        "prompt_per_second": 3220.9948334378173,
+        "predicted_n": 60,
+        "predicted_ms": 321.567,
+        "predicted_per_token_ms": 5.450288135593221,
+        "predicted_per_second": 183.47653832638298
+      }
+    }
+  ],
+  "accelerated": [
+    {
+      "round": 1,
+      "prompt": 0,
+      "answer": "Send the report on Thursday morning.",
+      "complete_ms": 87.76,
+      "first_text_ms": 48.22,
+      "stream_ms": 86.09,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 105,
+        "prompt_ms": 45.184,
+        "prompt_per_token_ms": 0.4303238095238095,
+        "prompt_per_second": 2323.831444759207,
+        "predicted_n": 8,
+        "predicted_ms": 37.362,
+        "predicted_per_token_ms": 5.337428571428572,
+        "predicted_per_second": 187.3561372517531,
+        "draft_n": 14,
+        "draft_n_accepted": 5
+      }
+    },
+    {
+      "round": 1,
+      "prompt": 1,
+      "answer": "The build is ready and the tests are passing.",
+      "complete_ms": 89.32,
+      "first_text_ms": 48.4,
+      "stream_ms": 88.11,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 104,
+        "prompt_ms": 49.126,
+        "prompt_per_token_ms": 0.4723653846153846,
+        "prompt_per_second": 2117.00525180149,
+        "predicted_n": 11,
+        "predicted_ms": 38.206,
+        "predicted_per_token_ms": 3.8206,
+        "predicted_per_second": 261.73899387530753,
+        "draft_n": 14,
+        "draft_n_accepted": 8
+      }
+    },
+    {
+      "round": 1,
+      "prompt": 2,
+      "answer": "Please update the README with the installation steps and mention that dictation runs locally after the models are downloaded.",
+      "complete_ms": 125.84,
+      "first_text_ms": 50.06,
+      "stream_ms": 124.92,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 125,
+        "prompt_ms": 47.303,
+        "prompt_per_token_ms": 0.378424,
+        "prompt_per_second": 2642.5385282117413,
+        "predicted_n": 23,
+        "predicted_ms": 76.979,
+        "predicted_per_token_ms": 3.4990454545454543,
+        "predicted_per_second": 285.792229049481,
+        "draft_n": 28,
+        "draft_n_accepted": 18
+      }
+    },
+    {
+      "round": 1,
+      "prompt": 3,
+      "answer": "For the next release we need to finish the streaming refiner, then test the download process on a clean machine, and check that the overlay still works if someone starts a second recording while the first one is finishing. Also make sure cancelling a recording never types an incomplete response into the editor.",
+      "complete_ms": 201.52,
+      "first_text_ms": 49.36,
+      "stream_ms": 202.09,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 149,
+        "prompt_ms": 47.314,
+        "prompt_per_token_ms": 0.31754362416107385,
+        "prompt_per_second": 3149.17360612081,
+        "predicted_n": 60,
+        "predicted_ms": 152.266,
+        "predicted_per_token_ms": 2.580779661016949,
+        "predicted_per_second": 387.4798050779557,
+        "draft_n": 56,
+        "draft_n_accepted": 51
+      }
+    },
+    {
+      "round": 2,
+      "prompt": 0,
+      "answer": "Send the report on Thursday morning.",
+      "complete_ms": 84.94,
+      "first_text_ms": 47.35,
+      "stream_ms": 83.96,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 105,
+        "prompt_ms": 45.264,
+        "prompt_per_token_ms": 0.4310857142857143,
+        "prompt_per_second": 2319.724284199364,
+        "predicted_n": 8,
+        "predicted_ms": 37.877,
+        "predicted_per_token_ms": 5.4110000000000005,
+        "predicted_per_second": 184.80872297172425,
+        "draft_n": 14,
+        "draft_n_accepted": 5
+      }
+    },
+    {
+      "round": 2,
+      "prompt": 1,
+      "answer": "The build is ready and the tests are passing.",
+      "complete_ms": 83.8,
+      "first_text_ms": 46.46,
+      "stream_ms": 83.67,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 104,
+        "prompt_ms": 45.492,
+        "prompt_per_token_ms": 0.4374230769230769,
+        "prompt_per_second": 2286.1162402180603,
+        "predicted_n": 11,
+        "predicted_ms": 36.659,
+        "predicted_per_token_ms": 3.6658999999999997,
+        "predicted_per_second": 272.78430944652064,
+        "draft_n": 14,
+        "draft_n_accepted": 8
+      }
+    },
+    {
+      "round": 2,
+      "prompt": 2,
+      "answer": "Please update the README with the installation steps and mention that dictation runs locally after the models are downloaded.",
+      "complete_ms": 121.79,
+      "first_text_ms": 50.76,
+      "stream_ms": 125.99,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 125,
+        "prompt_ms": 45.756,
+        "prompt_per_token_ms": 0.366048,
+        "prompt_per_second": 2731.8821575312527,
+        "predicted_n": 23,
+        "predicted_ms": 74.185,
+        "predicted_per_token_ms": 3.3720454545454546,
+        "predicted_per_second": 296.5559075284761,
+        "draft_n": 28,
+        "draft_n_accepted": 18
+      }
+    },
+    {
+      "round": 2,
+      "prompt": 3,
+      "answer": "For the next release we need to finish the streaming refiner, then test the download process on a clean machine, and check that the overlay still works if someone starts a second recording while the first one is finishing. Also make sure cancelling a recording never types an incomplete response into the editor.",
+      "complete_ms": 194.92,
+      "first_text_ms": 47.7,
+      "stream_ms": 194.43,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 149,
+        "prompt_ms": 45.898,
+        "prompt_per_token_ms": 0.3080402684563759,
+        "prompt_per_second": 3246.328816070417,
+        "predicted_n": 60,
+        "predicted_ms": 147.309,
+        "predicted_per_token_ms": 2.496762711864407,
+        "predicted_per_second": 400.5186376935557,
+        "draft_n": 56,
+        "draft_n_accepted": 51
+      }
+    }
+  ],
+  "output_parity": true,
+  "metadata": {
+    "measured_date": "2026-11-24",
+    "os": "Linux",
+    "gpu": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "gpu_memory_mib": 8188,
+    "backend": "Vulkan",
+    "engine": "llama.cpp b12210",
+    "target_repo": "Infatoshi/phonon-refiner-1.7b",
+    "target_revision": "b20b28075046af94056ab5d5bff89a7abc0f6f50",
+    "target_sha256": "0439996bda5886b92c86db49249be7d7ad2175ccf35bf2630c09433684e502e5",
+    "drafter_sha256": "56eccf7c9cb760231aee8bd6744e2144b4219987222fef770fe3970d143f5fd7",
+    "baseline": "2.4.2 decoding configuration, no drafter",
+    "candidate": "2.5.0 decoding configuration, DFlash2 with 7 draft tokens",
+    "warmup_rounds": 1,
+    "measured_rounds": 2,
+    "prompts": [
+      "um send the report on tuesday no wait thursday morning",
+      "okay the build is ready and the the tests are passing",
+      "please update the readme with the installation steps and mention that everything runs locally on the computer no wait mention that dictation runs locally after the models are downloaded",
+      "so for the next release we need to finish the streaming refiner then test the download process on a clean machine and check that the overlay still works if someone starts a second recording while the first one is finishing also make sure cancelling a recording never types an incomplete response into the editor"
+    ],
+    "scope": "Refiner HTTP requests only; excludes speech recognition, microphone, UI rendering, final text insertion and model loading."
+  }
+}

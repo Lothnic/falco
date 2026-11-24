@@ -104,3 +104,34 @@ def test_an_answer_for_a_newer_recording_is_not_kept_for_the_old_one():
 
     _guess("racing text", start_new_recording_then_answer, serial)
     assert refiner_prefetch.take("racing text", serial) is None
+
+
+def test_a_guess_for_another_mode_or_engine_is_never_reused():
+    serial = refiner_prefetch.begin()
+    thread = refiner_prefetch.offer('hello there', str.upper, serial, key=('minimal', 1))
+    thread.join(timeout=5)
+    assert refiner_prefetch.take('hello there', serial, key=('casual', 1)) is None
+    assert refiner_prefetch.take('hello there', serial, key=('minimal', 2)) is None
+    assert refiner_prefetch.take('hello there', serial, key=('minimal', 1)) == 'HELLO THERE'
+
+
+def test_release_can_wait_for_an_exact_request_already_in_flight():
+    import threading
+    started, finish = threading.Event(), threading.Event()
+    serial = refiner_prefetch.begin()
+
+    def slow(text):
+        started.set()
+        assert finish.wait(5)
+        return text.upper()
+
+    worker = refiner_prefetch.offer('hello there', slow, serial, key='minimal')
+    assert started.wait(5)
+    result = []
+    waiting = threading.Thread(target=lambda: result.append(refiner_prefetch.take(
+        'hello there', serial, key='minimal', wait=5)))
+    waiting.start()
+    finish.set()
+    worker.join(timeout=5)
+    waiting.join(timeout=5)
+    assert result == ['HELLO THERE']

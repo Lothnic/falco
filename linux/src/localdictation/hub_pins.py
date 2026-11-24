@@ -33,6 +33,8 @@ REVISIONS = {
 
 # The Hub's own SHA256 of each file (its Git LFS id) at the commit above.
 SHA256 = {
+    ("Infatoshi/phonon-refiner-1.7b", "phonon-refiner-1.7b-dflash2-drafter.gguf"):
+        "56eccf7c9cb760231aee8bd6744e2144b4219987222fef770fe3970d143f5fd7",
     ("Infatoshi/phonon-refiner-1.7b", "phonon-refiner-1.7b-Q4_K_S-e4.gguf"):
         "0439996bda5886b92c86db49249be7d7ad2175ccf35bf2630c09433684e502e5",
     ("Systran/faster-whisper-tiny", "model.bin"):
