@@ -17,6 +17,8 @@ CATALOG = (
     ("general", "toggle_hotkey", "Toggle recording", "Press once to start and again to finish. Empty disables it."),
     ("general", "voice_commands_hotkey", "Command reference shortcut", "Opens the voice command reference."),
     ("general", "paste_last_hotkey", "Paste last dictation shortcut", "Empty disables this shortcut."),
+    ("general", "command_mode", "Command Mode", "Wayland only. Speak an instruction to rewrite a selection or draft new text. Downloads the local AI if needed."),
+    ("general", "command_hotkey", "Command Mode shortcut", "Press once to start and again to finish. Empty disables it."),
     ("general", "mode", "Recording mode", "Use hold-to-talk or toggle recording."),
     ("general", "launch_at_login", "Launch at login", "Start Falco when you sign in."),
     ("general", "auto_timeout_enabled", "Stop when idle", "Release the speech model after inactivity."),
@@ -143,12 +145,17 @@ def checked_changes(settings, changes):
         if key in changes and changes[key] and changes[key] not in config.HOTKEY_CHOICES:
             raise ValueError("Choose a supported dictation shortcut.")
     from .hotkey_keys import parse_hotkey_combo
-    for key in ("voice_commands_hotkey", "paste_last_hotkey"):
+    for key, example in (("voice_commands_hotkey", "Ctrl+Alt+V"),
+                         ("paste_last_hotkey", "Ctrl+Alt+P"),
+                         ("command_hotkey", "Ctrl+Alt+C")):
         if key in changes and changes[key] and parse_hotkey_combo(changes[key]) is None:
-            raise ValueError("Use a shortcut such as Ctrl+Alt+V, or leave it empty to disable it.")
-    shortcut_keys = ("hotkey", "toggle_hotkey", "voice_commands_hotkey", "paste_last_hotkey")
-    if set(shortcut_keys) & changes.keys():
-        shortcuts = [changes.get(key, values[key]).replace(" ", "").upper() for key in shortcut_keys]
+            raise ValueError(f"Use a shortcut such as {example}, or leave it empty to disable it.")
+    shortcut_keys = ("hotkey", "toggle_hotkey", "voice_commands_hotkey", "paste_last_hotkey",
+                     "command_hotkey")
+    if (set(shortcut_keys) | {"command_mode"}) & changes.keys():
+        active = changes.get("command_mode", values["command_mode"])
+        shortcuts = [changes.get(key, values[key]).replace(" ", "").upper()
+                     for key in shortcut_keys if key != "command_hotkey" or active]
         configured = [key for key in shortcuts if key]
         if len(configured) != len(set(configured)):
             raise ValueError("Choose a different shortcut for each action.")

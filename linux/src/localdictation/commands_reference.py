@@ -155,6 +155,19 @@ SECTIONS = (
                 'correct yourself mid-sentence: "meet at 3, no wait, 4" → "meet at 4"',
                 "correction"),
     )),
+    Section("Command Mode", EDITING, commands=(
+        Command(("make this shorter", "turn this into an email", "add a friendly opening"),
+                "select text, then press the Command Mode shortcut, say the change, and "
+                "press it again: the AI rewrites the selection", "instruction",
+                "Turn it on under Preferences → General; its AI is under Advanced "
+                "(Refiner in Rune)"),
+        Command(("write a reply saying I'll be late", "a short note about the deploy",
+                 "write two sentences about why walking helps"),
+                "with nothing selected, the AI writes it at the cursor", "instruction"),
+        Command(("search the web for train times", "open Firefox"),
+                "voice commands work here too; with nothing selected they run "
+                "instead of a draft", "instruction"),
+    )),
     Section("Editing by Voice", EDITING, labs=LABS_EDIT, commands=(
         Command(("make this more formal", "fix the grammar", "make it friendlier"),
                 "the AI rewrites the selected text: hold Shift with your dictation key as "

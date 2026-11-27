@@ -27,6 +27,7 @@ die() {
 usage() {
     cat <<'EOF'
 Install Falco for the current user.
+Verified 0.1.0 installations are replaced by a clean install; settings and models stay.
 
 Usage: install.sh [options]
 

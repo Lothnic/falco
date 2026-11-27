@@ -101,6 +101,8 @@ def keys_to_claim(cfg):
         ("voice-commands", "voice commands", getattr(cfg, "voice_commands_hotkey", "")),
         ("paste-last", "paste last dictation", getattr(cfg, "paste_last_hotkey", "")),
     )
+    if getattr(cfg, "command_mode", False):
+        roles += (("command", "Command Mode", getattr(cfg, "command_hotkey", "")),)
     if getattr(cfg, "voice_editing", False):
         roles += tuple((f"edit-{role}", "voice edit", f"Shift+{name}")
                        for role, _what, name in roles[:2] if name)

@@ -179,6 +179,26 @@
   },
   {
     "section": "general",
+    "key": "command_mode",
+    "label": "Command Mode",
+    "hint": "Wayland only. Speak an instruction to rewrite a selection or draft new text. Downloads the local AI if needed.",
+    "datatype": "bool",
+    "kind": "bool",
+    "value": "false",
+    "choices": []
+  },
+  {
+    "section": "general",
+    "key": "command_hotkey",
+    "label": "Command Mode shortcut",
+    "hint": "Press once to start and again to finish. Empty disables it.",
+    "datatype": "str",
+    "kind": "text",
+    "value": "Ctrl+Alt+C",
+    "choices": []
+  },
+  {
+    "section": "general",
     "key": "mode",
     "label": "Recording mode",
     "hint": "Use hold-to-talk or toggle recording.",

@@ -1,6 +1,6 @@
 # Falco
 
-[**2.5.1 — Unified interface**](https://github.com/Lothnic/falco/releases/tag/v2.5.1)
+[**2.6.0 — Command Mode**](https://github.com/Lothnic/falco/releases/tag/v2.6.0)
 
 Falco is a local voice dictation app for Linux. Hold a dictation key, speak,
 and the text is typed into the application you are using. Speech recognition
@@ -32,6 +32,9 @@ official Phonon or TuxTalk release.
 - **Your vocabulary.** Custom words steer recognition, and voice commands
   handle punctuation, formatting, undo, and "fix that word". Falco Labs adds
   optional voice editing, selection, and app, window, key, and mouse control.
+- **Command Mode.** Select text and say how to change it, or say what to write
+  with nothing selected. The local AI rewrites the selection or drafts at the
+  cursor; existing voice commands keep working.
 - **Rune dashboard and overlay.** Settings, pronunciations, snippets, usage, updates and backups
   share one dark slate-and-mint window, plus a sound-responsive recording overlay. Search the current
   session's dictations in Recent. An optional live transcript shows the
@@ -50,22 +53,22 @@ official Phonon or TuxTalk release.
   over SSH. `falco --toggle` and `falco --start`/`--stop` drive the running
   app.
 
-## Falco 2.5.1 — Unified interface
+## Falco 2.6.0 — Command Mode
 
-Settings and vocabulary editing now stay inside Rune. Search every setting,
-apply or discard drafts, edit pronunciations and snippets, test your microphone
-and shortcuts, and manage updates and backups without opening the old
-Preferences window. Downloads show progress and can be cancelled; failed saves
-keep your edits. Tray actions bring the existing dashboard forward.
+Command Mode turns a spoken instruction into an edit or a new draft. Select
+text, press **Ctrl+Alt+C** (or your own shortcut), say **make this shorter**,
+and press it again. With nothing selected, say **a short note saying the deploy
+moved to Friday** and the local AI writes it at the cursor. Existing voice
+commands such as **open Firefox** still run, and drafts never leave the machine.
 
-The Linux x86_64 installer includes matching prebuilt Rune binaries, checked
-against the release checksum. Rust is needed only to build the UI from source.
-The GTK interface remains available as a compatibility fallback when Rune
-cannot run; first-run system setup still uses the existing setup screens.
+The feature is opt-in under **Settings → General**, in both
+Rune and the GTK compatibility window. Command Mode is off by default, so
+existing dictation and voice editing behave as before. Like voice editing, it
+needs a Wayland session and does not automatically submit drafts.
 
-![Falco 2.5.1 unified Rune settings with example values](docs/images/rune-2.5.1.png)
+![Falco Rune settings with example values](docs/images/rune-2.6.0.png)
 
-[2.5.1 release notes](docs/releases/v2.5.1.md)
+[2.6.0 release notes](docs/releases/v2.6.0.md)
 
 ### Refiner edition features
 
@@ -150,6 +153,10 @@ The installer uses the latest published release tag. Until a release is
 published, it uses the preview from `main`. Use `--ref` to choose a specific
 tag, branch, or commit. Use `--no-deps` if you manage the system packages
 yourself. You can download and read the Bash script before running it.
+
+For a verified **0.1.0** installation, the installer removes the old app and
+its owned launchers before a fresh install. Settings and models stay; other
+versions use the normal upgrade path. A failed reinstall restores the old app.
 
 Run the same command again to upgrade. Quit and reopen Falco afterwards. If an install fails, you can retry it. Falco
 keeps the existing launcher active until the new release is ready and

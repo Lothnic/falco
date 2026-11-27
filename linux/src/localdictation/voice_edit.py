@@ -95,6 +95,48 @@ def transcribe_and_edit(frames, rec_sr, beeps_on, language, injection_mode, mess
                    window=where[1] if where is not None else None)
 
 
+def transcribe_and_command(frames, rec_sr, beeps_on, language, injection_mode, message, where):
+    """Command Mode: the recording, whose *message* it is, is an instruction
+    for the selected text ("make this shorter") or, when nothing is
+    selected, the text to write ("a short note saying I'll be late"). The
+    local AI does the work and its result goes in at the cursor.
+
+    *where* is the window that had the focus when the recording stopped
+    (focused_window.look), None when not known. The window is looked at
+    again before any key is sent, so a switch during the AI is left alone."""
+    t0 = time.time()
+    audio_f32 = recording.frames_f32(frames)
+    if audio_f32.size == 0:
+        return
+    if rec_sr != engine.SAMPLE_RATE:
+        audio_f32 = resampling.resample(audio_f32, rec_sr, engine.SAMPLE_RATE)
+    if silence.is_speechless_tap(audio_f32, engine.SAMPLE_RATE):
+        return
+
+    if not keyboard_output.is_wayland_session():
+        # Reading a selection needs wl-copy / wl-paste, as voice editing does.
+        notices.edit_problem("needs_wayland", beeps_on)
+        return
+    if where is not None and focused_window.changed(where, focused_window.look()):
+        notices.edit_problem("focus_moved", beeps_on)
+        return
+    focused_class = focused_window.window_class()
+    if focused_class is None:
+        notices.edit_problem("cant_check_window", beeps_on)
+        return
+    if is_terminal_class(focused_class):
+        notices.edit_problem("terminal", beeps_on)
+        return
+    heard = []
+
+    def instruction():
+        if not heard:
+            heard.append(engine.transcribe(audio_f32, language))
+        return heard[0]
+    edit_selection(instruction, beeps_on, injection_mode, focused_class, t0, message,
+                   window=where[1] if where is not None else None, command=True)
+
+
 def _only_into(focused_class, window):
     """virtual_keyboard.send's claim for keys that may only go into the
     window the edit started in, made right before the first key goes down.
@@ -388,7 +430,7 @@ _UNCHANGED = object()
 
 
 def edit_selection(get_instruction, beeps_on, injection_mode, focused_class, t0, message,
-                   expected=None, window=None):
+                   expected=None, window=None, command=False):
     """Change the text selected in *focused_class* as the instruction
     *get_instruction()* says (called only once a selection is found), and
     type the result over it, as part of *message*. *expected*: the
@@ -409,7 +451,7 @@ def edit_selection(get_instruction, beeps_on, injection_mode, focused_class, t0,
     restore = []
     try:
         done = _change_selection(get_instruction, beeps_on, injection_mode, where, t0, message,
-                                 expected, restore)
+                                 expected, restore, command=command)
         if done is _UNCHANGED:
             _let_go_of_selection(expected, where)
             return False
@@ -420,7 +462,7 @@ def edit_selection(get_instruction, beeps_on, injection_mode, focused_class, t0,
 
 
 def _change_selection(get_instruction, beeps_on, injection_mode, where, t0, message, expected,
-                      restore):
+                      restore, command=False):
     """edit_selection's work: True when the change went in, _UNCHANGED when
     nothing in the app changed, False when something did (part of a
     rewrite, a select or move command). Once it has copied a selection,
@@ -440,6 +482,8 @@ def _change_selection(get_instruction, beeps_on, injection_mode, where, t0, mess
     went_in = []        # the rewrite, once it went in (_rewrite_over_selection)
     if selected:
         restore.append(lambda: _put_clipboard_back(put_back, went_in))
+    if command and not selected:
+        return _draft_command(get_instruction, beeps_on, injection_mode, message, where)
     if _refused_selection(selected, expected, get_instruction, where, beeps_on, message):
         return _UNCHANGED
     instruction = get_instruction()
@@ -455,6 +499,11 @@ def _change_selection(get_instruction, beeps_on, injection_mode, where, t0, mess
         moved = voice_commands.navigate(instruction, beeps_on, where)
         if moved is not None:
             return False if moved else _UNCHANGED
+        if command:
+            from . import voice_actions
+            ran = voice_actions.run(instruction, beeps_on)
+            if ran is not None:
+                return False if ran else _UNCHANGED
         logger.info(f"Voice edit: {live.loggable(instruction)} ({len(selected)} characters)")
         keys = _edit_with_keys(instruction, focused_class, window, beeps_on, message)
     if keys is not _NOT_A_KEY_EDIT:
@@ -466,6 +515,53 @@ def _change_selection(get_instruction, beeps_on, injection_mode, where, t0, mess
     logger.info(f"Voice edit result: {live.loggable(result)} "
                 f"(took {time.time() - t0:.2f}s)")
     return _rewrite_over_selection(result, injection_mode, message, beeps_on, where, went_in)
+
+
+def _draft_command(get_instruction, beeps_on, injection_mode, message, where):
+    """Command Mode with nothing selected: *get_instruction*'s words are
+    either a voice command or what to write, which the local AI drafts and
+    types at the cursor in *where*."""
+    focused_class, window = where
+    instruction = get_instruction()
+    if _cancelled(message):
+        return _UNCHANGED
+    if not instruction:
+        notices.edit_problem("no_instruction", beeps_on)
+        return _UNCHANGED
+    with keyboard_output.until_cancelled(message):
+        moved = voice_commands.navigate(instruction, beeps_on, where)
+        if moved is not None:
+            return False if moved else _UNCHANGED
+        from . import voice_actions
+        ran = voice_actions.run(instruction, beeps_on)
+        if ran is not None:
+            return False if ran else _UNCHANGED
+    if focused_class is None:
+        notices.edit_problem("cant_check_window", beeps_on)
+        return _UNCHANGED
+    ai = live.ai_engine
+    if ai is None:
+        notices.edit_problem("not_installed", beeps_on)
+        return _UNCHANGED
+    if not ai.is_ready():
+        notices.edit_problem("not_ready", beeps_on)
+        return _UNCHANGED
+    logger.info(f"Command draft: {live.loggable(instruction)}")
+    result = ai.draft(instruction)
+    if result is None or _cancelled(message) or notices.refuse_password_field(beeps_on):
+        if result is None:
+            notices.edit_problem("no_answer", beeps_on)
+        return _UNCHANGED
+    into = where
+    if focus_moved(focused_class, window):
+        notices.edit_problem("window_changed", beeps_on)
+        return _UNCHANGED
+    from . import history
+    history.add_entry(result)
+    outcome = _type_rewrite(result, injection_mode, message, beeps_on, into)
+    if outcome in delivery.GAVE_UP_UNTYPED:
+        return _UNCHANGED
+    return outcome == "ok"
 
 
 def _copy_selection(where, beeps_on, message):

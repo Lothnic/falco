@@ -44,6 +44,11 @@ duck_audio = False
 # type that" notice; refreshed with the live settings. "" when turned off.
 paste_last_hotkey = ""
 
+# Command Mode (config command_mode), and its shortcut, read by the hotkey
+# loop; refreshed with the live settings.
+command_mode = False
+command_hotkey = ""
+
 
 def loggable(text):
     """Render transcribed text for a log line, redacted unless the user opted in."""
@@ -115,7 +120,7 @@ def apply(cfg):
     global chunk_pause_seconds, chunk_cfg, chunk_context_marks
     global log_transcripts, usage_stats, restore_clipboard, pause_media, duck_audio
     global resume_media
-    global paste_last_hotkey
+    global paste_last_hotkey, command_mode, command_hotkey
     global refiner_mode, rune_live_preview
     global developer_mode
     global learn_words
@@ -127,6 +132,8 @@ def apply(cfg):
     resume_media = cfg.resume_media
     duck_audio = cfg.duck_audio
     paste_last_hotkey = cfg.paste_last_hotkey
+    command_mode = bool(getattr(cfg, "command_mode", False))
+    command_hotkey = getattr(cfg, "command_hotkey", "")
     auto_stop_seconds = float(cfg.auto_stop_seconds) if cfg.auto_stop_silence else 0.0
     chunk_cfg = cfg
     chunk_context_marks = bool(cfg.chunk_context_marks)
@@ -161,7 +168,8 @@ def apply(cfg):
     rune_live_preview = cfg.rune_live_preview
     streaming_dictation = bool(cfg.streaming_dictation)
     voice_editing = bool(cfg.voice_editing)
-    want_ai = ai_corrections or voice_editing
+    # Command Mode rewrites and drafts through the same local AI.
+    want_ai = ai_corrections or voice_editing or command_mode
     if want_ai and ai_engine is None:
         from . import ai_cleanup, ai_download
         if ai_download.is_installed():

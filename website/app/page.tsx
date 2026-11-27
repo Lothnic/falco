@@ -34,7 +34,7 @@ const stages = [
   {
     label: "03 / Refine",
     title: "Fillers out. Meaning kept.",
-    body: "Optional local cleanup fixes self-corrections and false starts. Falco 2.5 adds Phonon drafter acceleration and streamed previews. Phonon is English-only.",
+    body: "Optional local cleanup fixes self-corrections and false starts. Falco 2.5 added Phonon drafter acceleration and streamed previews. Phonon is English-only.",
   },
   {
     label: "04 / Insert",
@@ -63,6 +63,11 @@ const capabilities = [
     title: "Your vocabulary",
     body: "Custom words steer recognition. Voice commands handle punctuation, formatting, undo, and fixes.",
     meta: "Custom words",
+  },
+  {
+    title: "Command Mode",
+    body: "Select text and say how to change it, or say what to write with nothing selected. The local AI rewrites the selection or drafts at the cursor.",
+    meta: "New in 2.6 · Wayland",
   },
   {
     title: "Rune dashboard",
@@ -326,7 +331,7 @@ function InsertArt() {
 }
 
 function OverlayArt() {
-  return <Image src="/images/rune-2.5.1.png" alt="Falco 2.5.1 settings in the unified dark Rune window, with example shortcut values" width={2200} height={1560} style={{ width: "100%", height: "auto" }} />;
+  return <Image src="/images/rune-2.6.0.png" alt="Falco settings in the unified dark Rune window, with example shortcut values" width={2200} height={1560} style={{ width: "100%", height: "auto" }} />;
 }
 
 function NetworkArt() {
@@ -545,7 +550,7 @@ export default function Home() {
             <div className="section-head">
               <p className="eyebrow">02 / Capabilities</p>
               <h2>
-                Six things it does
+                Seven things it does
                 <br />
                 without <span className="accent">a cloud.</span>
               </h2>
@@ -580,7 +585,7 @@ export default function Home() {
                 <OverlayArt />
                 <div className="cap-art-foot">
                   <span>Unified settings</span>
-                  <span>Rune 2.5.1</span>
+                  <span>Rune dashboard</span>
                 </div>
               </aside>
             </div>
@@ -729,6 +734,7 @@ export default function Home() {
                   note="Installs under ~/.local/share/falco-app and adds ~/.local/bin/falco. Rerun the installer to upgrade."
                 />
                 <p className="install-note">
+                  Verified 0.1.0 installs receive a clean app reinstall with settings and models retained.
                   The matching Rune dashboard and overlay are included on Linux x86_64.
                   To build locally with Rust 1.99.1+, add <code>bash -s -- --with-rune</code>
                   {" "}after the pipe.

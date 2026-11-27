@@ -651,7 +651,8 @@ class AdvancedTab(Tab):
             return
         self.update_config("refiner_model", choice)
         if not (self.config.get("ai_corrections", False)
-                or self.config.get("voice_editing", False)):
+                or self.config.get("voice_editing", False)
+                or self.config.get("command_mode", False)):
             return
         from types import SimpleNamespace
         from localdictation import ai_download

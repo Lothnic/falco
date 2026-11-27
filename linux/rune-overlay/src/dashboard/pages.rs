@@ -110,6 +110,7 @@ pub fn help(s: &State) -> El {
     ));
     for (title, detail) in [
         ("Start a dictation", format!("Hold {} while speaking, then release to insert the text. The toggle shortcut is {}. Configure both in Settings → General.",s.snapshot.hotkey,s.snapshot.toggle_hotkey)),
+        ("Use Command Mode", "On Wayland, enable Command Mode in Settings → General. Its default shortcut is Ctrl+Alt+C: press once, say what to change or write, then press again. Selected text is rewritten; an empty selection creates a draft at the cursor. Missing AI files download when you enable it. Esc cancels; drafts are not automatically submitted.".into()),
         ("Choose a speech model", "Settings → Speech lets you choose the model, device and language. CPU works on every computer. Parakeet supports English and 24 European languages; choose Whisper for Hindi and other languages.".into()),
         ("Refine your text", "Settings → Refiner controls cleanup, writing style and optional Phonon acceleration. Models run locally. Applying changes downloads missing files first; you can cancel without changing the saved setup.".into()),
         ("See a live transcript", "Enable Show live transcript in Settings → Appearance. With CPU Parakeet, Start typing sooner in Audio also works during speech pauses. Preview text can change; only completed, checked text is inserted.".into()),

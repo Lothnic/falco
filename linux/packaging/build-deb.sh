@@ -78,6 +78,7 @@ cat > "$pkg/usr/lib/falco/run.sh" <<'RUNNER'
 #!/usr/bin/env bash
 set -e
 release_dir="/usr/lib/falco"
+unset PYTHONHOME PYTHONPATH
 if [[ "${FALCO_LEGACY_UI:-0}" != 1 && -x "$release_dir/bin/phonon-overlay" ]]; then
     export PHONON_RUNE_OVERLAY="${PHONON_RUNE_OVERLAY:-$release_dir/bin/phonon-overlay}"
 fi
@@ -89,6 +90,7 @@ cat > "$pkg/usr/bin/falco" <<'LAUNCHER'
 #!/usr/bin/env bash
 set -e
 release_dir="/usr/lib/falco"
+unset PYTHONHOME PYTHONPATH
 # Commands stay usable from scripts even when the dashboard is installed.
 if (($#)) || [[ "${FALCO_LEGACY_UI:-0}" == 1 ]]; then
     exec "$release_dir/run.sh" "$@"

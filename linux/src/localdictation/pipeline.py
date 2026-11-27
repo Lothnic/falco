@@ -632,6 +632,15 @@ def stop_recording(
         return
     frames, rec_sr = cap
     message = rec.message
+    if rec.command_mode:
+        where = focused_window.look()       # the window the command is for
+
+        def command():
+            mouse_grid.close("a command")
+            voice_edit.transcribe_and_command(frames, rec_sr, beeps_on, language,
+                                              injection_mode, message, where)
+        _finish(message, command)
+        return
     if rec.edit_mode:
         where = focused_window.look()       # the window the edit is for
 

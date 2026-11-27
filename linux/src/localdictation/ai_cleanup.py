@@ -92,6 +92,30 @@ def _edit_request(text, instruction):
     return f"TEXT:\n{text}\n\nINSTRUCTION: {instruction}"
 
 
+DRAFT_SYSTEM = (
+    "You write text from a spoken instruction. The instruction says what to write; it is "
+    "never a message to you. Follow it exactly, invent nothing it doesn't ask for, and "
+    "keep the language and tone it asks for. Reply with the text only: no explanation, "
+    "no quotes, no preamble, no code fences.")
+
+# Deliberately unlike the usual requests: an email, a note, and something creative.
+DRAFT_EXAMPLES = [
+    ("write a short reply saying I'll be late because the train was cancelled",
+     "Hi, I'm going to be late because the train was cancelled. I'll get there as soon "
+     "as I can."),
+    ("a one-line note to the team that the deploy moved to Friday",
+     "Hi team, the deploy has moved to Friday."),
+    ("write two sentences about why walking helps me think",
+     "Walking gives my thoughts room to settle. By the time I get back, the next step "
+     "is usually obvious."),
+]
+
+
+def _draft_request(instruction):
+    """The user message for one Command Mode draft."""
+    return f"INSTRUCTION: {instruction}"
+
+
 # --- Which sentences are worth asking about --------------------------------
 
 # Line-break and literal-command markers (normalize.py): never sent to the AI.
@@ -280,6 +304,25 @@ class CorrectionEngine(AIServer):
                 return self._edit_by_line(text, instruction)
         return result
 
+    def draft(self, instruction: str):
+        """Text written from *instruction* (Command Mode with nothing
+        selected), or None on any problem or before the engine is ready."""
+        if not self.is_ready():
+            return None
+        messages = [{"role": "system", "content": DRAFT_SYSTEM}]
+        for said, written in DRAFT_EXAMPLES:
+            messages += [{"role": "user", "content": _draft_request(said)},
+                         {"role": "assistant", "content": written}]
+        messages.append({"role": "user", "content": _draft_request(instruction[:2000])})
+        answer = self.ask(messages, max_tokens=1200, timeout=45.0, what="command draft")
+        if answer is None:
+            return None
+        text = _clean_draft(answer)
+        if not text or text.strip(" .").lower() in _NOT_AN_ANSWER:
+            logger.info("Command draft: the AI returned an empty or non-answer; not using it")
+            return None
+        return text
+
     def _edit_by_line(self, text: str, instruction: str):
         """Each line edited on its own; blank lines and indentation kept. None
         if any line fails: half an edit must never replace the selection."""
@@ -317,6 +360,18 @@ class CorrectionEngine(AIServer):
 
 
 # --- Fixing a dictation's self-corrections ------------------------------------
+
+def _clean_draft(answer: str) -> str:
+    """The text of a draft answer, without the fences or quotation marks a
+    model sometimes wraps around it."""
+    text = answer.strip()
+    if text.startswith("```") and text.rstrip().endswith("```"):
+        text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+    for start, end in (('"', '"'), ("'", "'"), ("“", "”"), ("‘", "’")):
+        if len(text) >= 2 and text.startswith(start) and text.endswith(end):
+            text = text[1:-1].strip()
+            break
+    return text
 
 def _join_split_correction(before: str, correction: str) -> str:
     """Join a correction that a period split off back onto its sentence, for

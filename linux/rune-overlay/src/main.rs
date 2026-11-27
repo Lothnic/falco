@@ -10,6 +10,7 @@ const HUD_SIZE: (f32, f32) = (408.0, 118.0);
 struct Hud {
     level: f32,
     processing: bool,
+    command: bool,
     draft: String,
 }
 impl Default for Hud {
@@ -17,6 +18,7 @@ impl Default for Hud {
         Self {
             level: 0.25,
             processing: false,
+            command: false,
             draft: String::new(),
         }
     }
@@ -47,6 +49,8 @@ fn view(s: &Hud, _: &mut Cx<Hud>) -> El {
     }
     let label = if s.processing {
         "Finishing…"
+    } else if s.command {
+        "Command"
     } else {
         "Listening"
     };
@@ -110,9 +114,15 @@ fn spec() -> AppSpec<Hud> {
         scenes: &[
             ("listening", |s| {
                 s.level = 0.8;
+                s.command = false;
+            }),
+            ("command", |s| {
+                s.command = true;
+                s.processing = false;
             }),
             ("processing", |s| {
                 s.processing = true;
+                s.command = false;
             }),
             ("draft", |s| {
                 s.draft = "Let's move the design review to Friday morning.".into();
@@ -163,6 +173,7 @@ fn main() {
                 Some("show") => {
                     overlay.update(|s, _| {
                         s.processing = false;
+                        s.command = false;
                         s.level = 0.0;
                         s.draft.clear();
                     });
@@ -172,8 +183,14 @@ fn main() {
                     overlay.hide();
                     overlay.update(|s, _| s.draft.clear());
                 }
+                Some("command") => overlay.update(|s, _| {
+                    s.command = true;
+                    s.processing = false;
+                    s.draft.clear();
+                }),
                 Some("processing") => overlay.update(|s, _| {
                     s.processing = true;
+                    s.command = false;
                     s.draft.clear();
                 }),
                 Some("level") => {

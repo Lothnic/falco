@@ -48,10 +48,10 @@ EXPLANATIONS = {
         "jumps to the start of the line), so TuxTalk doesn't press them there.\n\n"
         "Use select and move in text editors, word processors, browsers and chat boxes."),
     "terminal": (
-        "Voice editing doesn't work in a terminal",
+        "Voice editing and Command Mode don't work in a terminal",
         "A terminal has no selected text to replace, and Ctrl+C there would stop "
         "the running program.\n\n"
-        "Use voice editing in text editors, word processors, browsers and chat boxes."),
+        "Use them in text editors, word processors, browsers and chat boxes."),
     "no_selection": (
         "Select the text first",
         "Voice editing changes the text you've selected. Select it first, then hold "
@@ -67,9 +67,9 @@ EXPLANATIONS = {
         "It can reword, shorten, fix the grammar or change capitals, but it can't "
         "change the font, size or color. Use the app's own menus for those."),
     "needs_wayland": (
-        "Voice editing needs Wayland",
-        "Voice editing reads the selected text through the Wayland clipboard, which an "
-        "X11 session doesn't have. Log in to a Wayland session to use it. Dictation "
+        "Voice editing and Command Mode need Wayland",
+        "Both read the selected text through the Wayland clipboard, which an X11 "
+        "session doesn't have. Log in to a Wayland session to use them. Dictation "
         "itself works the same on X11."),
 }
 

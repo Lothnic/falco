@@ -34,6 +34,11 @@ PASTE_LAST_KEYS = [
     ("Ctrl+Alt+P", "Ctrl+Alt+P (recommended)"),
     ("Ctrl+Super+P", "Ctrl+Super+P"),
 ]
+COMMAND_KEYS = [
+    ("", "None (disabled)"),
+    ("Ctrl+Alt+C", "Ctrl+Alt+C (recommended)"),
+    ("Ctrl+Super+C", "Ctrl+Super+C"),
+]
 
 # What the hold and toggle dropdowns show for a blank key (_apply_hotkey_fallbacks).
 _KEY_SHOWN_WHEN_BLANK = {"hotkey": "F8", "toggle_hotkey": "F9"}
@@ -85,7 +90,8 @@ def _kde_clashes(cfg, changed, refused, apps):
     KDE already uses."""
     # KDE reports keys in Qt's spelling (Super is "Meta"): map back to ours.
     from .hotkey_claims import qt_key_sequence
-    all_keys = ("hotkey", "toggle_hotkey", "voice_commands_hotkey", "paste_last_hotkey")
+    all_keys = ("hotkey", "toggle_hotkey", "voice_commands_hotkey", "paste_last_hotkey",
+                "command_hotkey")
     if not changed & set(all_keys):
         return []
     ours = {qt_key_sequence(cfg.get(k)): cfg.get(k) for k in all_keys if cfg.get(k)}
@@ -287,10 +293,9 @@ class GeneralTab(Tab):
         return row
 
     def _build_shortcuts(self, grid, row):
-        """The More shortcuts fold: the commands cheat sheet and Paste Last
-        Dictation. Both work out of the box, so they stay folded and the
-        section shows only the keys people dictate with. Returns the next
-        free row."""
+        """The More shortcuts fold: the commands cheat sheet, Paste Last
+        Dictation, and Command Mode. They stay folded so the section shows only
+        the keys people dictate with. Returns the next free row."""
         self.shortcuts_fold = fold(grid, row, "Show more shortcuts",
                                              "Hide more shortcuts")
         shortcuts = self.shortcuts_fold.content
@@ -315,8 +320,28 @@ class GeneralTab(Tab):
         shortcuts.attach(label, 0, 1, 1, 1)
         self.pl_hotkey_combo = self._shortcut_combo(label, PASTE_LAST_KEYS, "paste_last_hotkey")
         shortcuts.attach(self.pl_hotkey_combo, 1, 1, 1, 1)
+
+        # Command Mode: one shortcut for a spoken rewrite or a new draft.
+        label = Gtk.Label(label="Command Mode:", xalign=0)
+        label.set_tooltip_text(
+            "Press this key combo, say what to change or write, and press it again.\n"
+            "With text selected Falco rewrites it; with nothing selected it writes\n"
+            "what you asked for at the cursor. Uses the local AI. Leave it empty\n"
+            "to turn the shortcut off.")
+        shortcuts.attach(label, 0, 2, 1, 1)
+        self.command_hotkey_combo = self._shortcut_combo(label, COMMAND_KEYS, "command_hotkey")
+        shortcuts.attach(self.command_hotkey_combo, 1, 2, 1, 1)
+        command_check = Gtk.CheckButton(label="Turn on Command Mode")
+        command_check.set_active(self.config.get("command_mode", False))
+        command_check.connect("toggled", self._on_command_mode_toggled)
+        shortcuts.attach(command_check, 0, 3, 2, 1)
         self._update_shortcuts_summary()
         return row + 1
+
+    def _on_command_mode_toggled(self, check):
+        self.win.advanced_tab._toggle_ai_feature(
+            check, "command_mode", self._on_command_mode_toggled,
+            "Download the local AI for Command Mode?")
 
     def _build_startup(self, grid, row):
         """Start at login; returns the next free row."""
@@ -479,7 +504,8 @@ class GeneralTab(Tab):
         and say so if KDE already uses the key. True when it asked, so Apply
         doesn't also say "Settings applied"."""
         from .config import HOTKEY_KEYS
-        if not set(changed) & {*HOTKEY_KEYS, "voice_commands_hotkey", "paste_last_hotkey"}:
+        if not set(changed) & {*HOTKEY_KEYS, "voice_commands_hotkey", "paste_last_hotkey",
+                                "command_hotkey"}:
             return False
         from .kwin_hotkeys import app_shortcuts_since
         from .secure_input import unheard_keys

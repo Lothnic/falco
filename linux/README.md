@@ -1,6 +1,6 @@
 # Falco
 
-Current release: **2.5.1 — Unified interface**.
+Current release: **2.6.0 — Command Mode**.
 
 An experimental community Linux dictation app built on [TuxTalk](https://github.com/ronb1964/TuxTalk), using the separately distributed [Phonon refiner](https://huggingface.co/Infatoshi/phonon-refiner-1.7b) for local transcript cleanup. This is not an official Phonon or TuxTalk release. Its tray and service are adapted from TuxTalk, with a Rune dashboard and recording overlay.
 
@@ -13,20 +13,24 @@ offers Minimal, Casual, Formal, AI prompt, and Match the focused app. App
 matching uses the desktop's application ID and defaults to Minimal when
 Falco can't identify the app.
 
-## Falco 2.5.1 — Unified interface
+## Falco 2.6.0 — Command Mode
 
-Rune now contains the full settings catalog, pronunciation and snippet editors,
-usage totals, update controls, backups and earlier restore points. Tray settings,
-words, help and about actions reuse the same window. Edits are kept until you
-apply or discard them. Failed or cancelled model downloads keep saved settings
-and your drafts intact.
+Command Mode adds a dedicated shortcut for spoken edits and drafts. Select text,
+press **Ctrl+Alt+C**, say **make this shorter**, and press it again to replace the
+selection. With nothing selected, say what to write and the local AI drafts it at
+the cursor. Voice commands such as **open Firefox** still run, and no text leaves
+the machine.
 
-The dark slate-and-mint appearance stays consistent across these pages. Native
-file pickers and administrator authentication still belong to your desktop.
-First-run setup and the optional GTK compatibility interface remain available.
-Set `FALCO_LEGACY_UI=1` when launching to explicitly use the GTK interface.
+Turn it on under **Settings → General** in Rune or GTK
+Preferences. It is off by default, so existing dictation and voice editing keep
+their current behaviour. Like voice editing, Command Mode needs a Wayland session
+and does not automatically submit drafts.
 
-[2.5.1 release notes](../docs/releases/v2.5.1.md)
+Rune remains the primary dashboard for settings, words, usage, updates and
+backups, with the dark slate-and-mint appearance. The GTK compatibility interface
+is still available with `FALCO_LEGACY_UI=1`.
+
+[2.6.0 release notes](../docs/releases/v2.6.0.md)
 
 ### Refiner edition features
 
@@ -80,6 +84,10 @@ curl -fsSL https://falco.lothnic.dev/install.sh | bash -s -- --with-rune
 The installer uses the latest published release tag and falls back to the
 preview from `main` until a release is published. Pass `--no-deps` to skip
 system packages, or `--ref` to choose a branch, tag, or commit.
+
+For a verified **0.1.0** installation, the installer removes the old app and
+its owned launchers before a fresh install. Settings and models stay; other
+versions use the normal upgrade path. A failed reinstall restores the old app.
 
 Rerun the installer to upgrade, then quit and reopen Falco. The existing launcher stays active until the new release is
 ready. Failed installs can be retried with the same command.

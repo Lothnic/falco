@@ -149,3 +149,70 @@ def test_rune_launcher_preserves_cli_and_explicit_legacy_mode(install_env):
     legacy = subprocess.run([str(launcher)], env=install_env | {"FALCO_LEGACY_UI": "1"},
                             capture_output=True, text=True, check=True)
     assert legacy.stdout.splitlines() == ["-m", "localdictation.cli"]
+
+
+def legacy_release(env, version="0.1.0"):
+    release = Path(env["PHONON_INSTALL_BASE"]) / "releases" / version
+    (release / "src/localdictation").mkdir(parents=True)
+    (release / "pyproject.toml").write_text(
+        f'[tool.poetry]\nname = "falco-dictation"\nversion = "{version}"\n')
+    (release / "src/localdictation/__init__.py").write_text(f'__version__ = "{version}"\n')
+    executable(release / "run.sh", "#!/bin/sh\nexit 0\n")
+    return release
+
+
+def test_exact_010_is_removed_before_reinstall_and_personal_data_survives(install_env):
+    old = legacy_release(install_env)
+    newer = legacy_release(install_env, "2.5.1")
+    launcher = Path(install_env["PHONON_BIN_DIR"]) / "falco"
+    launcher.parent.mkdir()
+    launcher.symlink_to(old / "run.sh")
+    desktop = Path(install_env["PHONON_DESKTOP_DIR"]) / "falco.desktop"
+    desktop.parent.mkdir()
+    desktop.write_text(f'[Desktop Entry]\nName=Falco\nExec="{old / "run.sh"}"\n')
+    data = Path(install_env["HOME"]) / ".local/share/PhononLinuxApp"
+    data.mkdir(parents=True)
+    (data / "model.gguf").write_bytes(b"keep model")
+    config = Path(install_env["HOME"]) / ".config/phonon-linux-app"
+    config.mkdir(parents=True)
+    (config / "config.toml").write_text('hotkey = "F8"\n')
+    # The replacement must be built after the old app has left its active path.
+    executable(Path(install_env["HOME"]) / "stubs/uv",
+               '#!/bin/sh\nif [ -e "$FALCO_TEST_OLD_RELEASE" ]; then exit 93; fi\nexit 0\n')
+    result = run_installer(LOCAL_INSTALLER, install_env, FALCO_TEST_OLD_RELEASE=str(old))
+    assert result.returncode == 0, result.stderr
+    assert not old.exists()
+    assert newer.is_dir()
+    assert launcher.resolve().parent != old
+    assert str(old) not in desktop.read_text()
+    assert (data / "model.gguf").read_bytes() == b"keep model"
+    assert (config / "config.toml").read_text() == 'hotkey = "F8"\n'
+
+
+def test_failed_010_reinstall_restores_the_original_installation(install_env):
+    old = legacy_release(install_env)
+    launcher = Path(install_env["PHONON_BIN_DIR"]) / "falco"
+    launcher.parent.mkdir()
+    launcher.symlink_to(old / "run.sh")
+    result = run_installer(LOCAL_INSTALLER, install_env, FALCO_TEST_INSTALL_EXIT="42")
+    assert result.returncode == 42
+    assert old.is_dir() and launcher.resolve() == old / "run.sh"
+
+
+def test_installed_launcher_ignores_an_old_pythonpath(install_env):
+    import tomllib
+    result = run_installer(LOCAL_INSTALLER, install_env)
+    assert result.returncode == 0, result.stderr
+    launcher = (Path(install_env["PHONON_BIN_DIR"]) / "falco").resolve()
+    version = tomllib.loads((ROOT / "linux/pyproject.toml").read_text())["tool"]["poetry"]["version"]
+    site = next((launcher.parent / ".venv/lib").glob("python*/site-packages")) / "localdictation"
+    site.mkdir()
+    (site / "__init__.py").write_text(f'__version__ = "{version}"\n')
+    (site / "cli.py").write_text('import localdictation; print(localdictation.__version__)\n')
+    old = Path(install_env["HOME"]) / "old-source/localdictation"
+    old.mkdir(parents=True)
+    (old / "__init__.py").write_text('__version__ = "0.1.0"\n')
+    (old / "cli.py").write_text('import localdictation; print(localdictation.__version__)\n')
+    run = subprocess.run([str(launcher), "--version"], env=install_env | {"PYTHONPATH":str(old.parent)},
+                         capture_output=True, text=True, check=True)
+    assert run.stdout.strip() == version

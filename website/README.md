@@ -2,7 +2,7 @@
 
 Landing page for [Falco](https://github.com/Lothnic/falco), the local dictation app for Linux.
 
-Current release: **2.5.1 — Unified interface**. Version displays and release links
+Current release: **2.6.0 — Command Mode**. Version displays and release links
 come from `app/release.ts`. The Linux benchmark section derives its values from
 `public/benchmarks/refiner-2.5-linux.json`, a published copy of the measured data
 in `../docs/benchmarks/`. Keep both JSON files identical when updating evidence.
@@ -17,4 +17,4 @@ npm test
 
 The production site is the Vercel project `falco` at `falco.lothnic.dev`, deployed
 from this directory. App release notes and benchmark methodology are in
-`../docs/releases/v2.5.1.md` and `../docs/benchmarks/README.md`.
+`../docs/releases/v2.6.0.md` and `../docs/benchmarks/README.md`.

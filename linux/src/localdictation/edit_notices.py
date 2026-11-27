@@ -5,21 +5,22 @@ longer explanations for the kinds that are rules rather than errors.
 """
 
 NOTICES = {
-    "not_installed": "Voice editing needs its AI. Turn it on in Preferences, Advanced.",
-    "not_ready": "Voice editing's AI is still starting. Try again in a few seconds.",
+    "not_installed": "This needs its local AI. Turn it on in Preferences, Advanced.",
+    "not_ready": "The local AI is still starting. Try again in a few seconds.",
     "no_selection": "Select the text to change first, then hold Shift with your dictation "
                     "key and say how to change it.",
     "too_long": "That's too much text to edit at once. Select a smaller part.",
-    "no_instruction": "I didn't catch what to change. Hold Shift with your dictation key "
-                      "and say it, like \u201cmake this more formal\u201d.",
-    "no_answer": "No change: the text may already read that way. Try saying it another way.",
-    "terminal": "Voice editing doesn't work in a terminal: there's no selection there to "
-                "replace.",
-    "needs_wayland": "Voice editing works only in a Wayland session for now. This desktop "
-                     "is running X11.",
+    "no_instruction": "I didn't catch the instruction. Say it again, like "
+                      "\u201cmake this more formal\u201d.",
+    "no_answer": "No result: the text may already read that way, or the AI had nothing to "
+                 "add. Try saying it another way.",
+    "terminal": "Voice editing and Command Mode don't work in a terminal: there's no "
+                "selection to replace.",
+    "needs_wayland": "Voice editing and Command Mode work only in a Wayland session for now. "
+                     "This desktop is running X11.",
     "no_clipboard": "TuxTalk couldn't use the clipboard to read the selection, so nothing "
                     "was changed.",
-    "window_changed": "You switched windows while the AI was working, so the rewrite "
+    "window_changed": "You switched windows while the AI was working, so the text "
                       "wasn't typed. It's in Recent Dictations in the TuxTalk menu.",
     "focus_moved": "You switched windows before the edit was done, so nothing was changed.",
     "cant_check_window": "TuxTalk couldn't tell which window has the focus, so it didn't "
@@ -53,14 +54,14 @@ NOTICES = {
 # (screen_message): glanced at, gone in seconds. The notification keeps the
 # full sentence, in the notification history.
 LABELS = {
-    "not_installed": "Turn on voice editing's AI in Preferences",
+    "not_installed": "Turn on the local AI in Preferences",
     "not_ready": "The AI is still starting",
     "no_selection": "Select some text first",
     "too_long": "Too much text, select less",
-    "no_instruction": "Didn't catch what to change",
-    "no_answer": "No change, try other words",
-    "terminal": "Can't edit in a terminal",
-    "needs_wayland": "Voice editing needs Wayland",
+    "no_instruction": "Didn't catch the instruction",
+    "no_answer": "No result, try other words",
+    "terminal": "Can't do that in a terminal",
+    "needs_wayland": "Needs Wayland",
     "no_clipboard": "Couldn't read the selection",
     "window_changed": "Window changed, see Recent Dictations",
     "focus_moved": "Window changed, nothing done",

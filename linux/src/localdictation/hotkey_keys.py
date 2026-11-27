@@ -116,6 +116,7 @@ class Hotkeys(NamedTuple):
     voice_cmds_combo: tuple | None
     voice_cmds_main_key: int | None
     paste_last_combo: tuple | None = None
+    command_combo: tuple | None = None
 
     @classmethod
     def from_settings(cls, cfg) -> "Hotkeys":
@@ -129,9 +130,12 @@ class Hotkeys(NamedTuple):
             voice_cmds_combo=voice_cmds_combo,
             voice_cmds_main_key=voice_cmds_combo[1] if voice_cmds_combo else None,
             paste_last_combo=parse_hotkey_combo(getattr(cfg, "paste_last_hotkey", "")),
+            command_combo=(parse_hotkey_combo(getattr(cfg, "command_hotkey", ""))
+                           if getattr(cfg, "command_mode", False) else None),
         )
 
     def watched(self) -> tuple:
         """The keys whose presses count as using TuxTalk (for Power Saving)."""
         return (self.hold_key, self.toggle_key, ecodes.KEY_ESC, self.voice_cmds_main_key,
-                self.paste_last_combo[1] if self.paste_last_combo else None)
+                self.paste_last_combo[1] if self.paste_last_combo else None,
+                self.command_combo[1] if self.command_combo else None)

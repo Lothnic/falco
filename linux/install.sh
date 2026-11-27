@@ -13,6 +13,13 @@ link_stage=""
 desktop_stage=""
 desktop_existed=0
 
+legacy_migration() {
+    /usr/bin/python3 "$source_dir/src/localdictation/legacy_install.py" "$1" \
+        --install-base "$install_base" --bin-dir "$bin_dir" --desktop-dir "$desktop_dir" \
+        --autostart-dir "${XDG_CONFIG_HOME:-$HOME/.config}/autostart" \
+        --legacy-base "$HOME/.local/share/phonon-linux-app"
+}
+
 desktop_exec() {
     local path="$1"
     path="${path//\\/\\\\}"
@@ -25,6 +32,7 @@ desktop_exec() {
 }
 
 cleanup() {
+    local status=$?
     if [[ -n "$release_dir" && ( -z "$launcher" ||
         "$(readlink -- "$bin_path" || true)" != "$launcher" ) ]]; then
         rm -rf -- "$release_dir"
@@ -38,6 +46,8 @@ cleanup() {
     if [[ -n "$desktop_stage" ]]; then
         rm -f -- "$desktop_stage"
     fi
+    legacy_migration rollback || printf 'The legacy backup was retained; see the migration message above.\n' >&2
+    return "$status"
 }
 
 for module in gi dbus; do
@@ -50,6 +60,12 @@ done
 mkdir -p -- "$install_base/releases" "$bin_dir" "$desktop_dir"
 exec 9>"$install_base/install.lock"
 flock -x 9
+
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+legacy_migration begin
 
 old_launcher=""
 if [[ -e "$bin_path" || -L "$bin_path" ]]; then
@@ -85,9 +101,7 @@ if [[ ! "$version" =~ ^[0-9A-Za-z][0-9A-Za-z.+-]*$ ]]; then
     exit 1
 fi
 
-trap cleanup EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+
 
 # A venv contains absolute paths, so build it at its final path. The command
 # continues to point to the previous release until the new one is complete.
@@ -115,6 +129,7 @@ cat > "$release_dir/run.sh" <<'RUNNER'
 #!/usr/bin/env bash
 set -e
 release_dir="$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")"
+unset PYTHONHOME PYTHONPATH
 if [[ "${FALCO_LEGACY_UI:-0}" != 1 && -x "$release_dir/bin/phonon-overlay" ]]; then
     export PHONON_RUNE_OVERLAY="${PHONON_RUNE_OVERLAY:-$release_dir/bin/phonon-overlay}"
 fi
@@ -127,6 +142,7 @@ if [[ -x "$release_dir/bin/phonon-window" ]]; then
 #!/usr/bin/env bash
 set -e
 release_dir="$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")"
+unset PYTHONHOME PYTHONPATH
 if (($#)) || [[ "${FALCO_LEGACY_UI:-0}" == 1 ]]; then
     exec "$release_dir/run.sh" "$@"
 fi
@@ -159,6 +175,9 @@ chmod 644 "$desktop_stage"
 mv -Tf -- "$desktop_stage" "$desktop_path"
 mv -Tf -- "$link_stage/falco" "$bin_path"
 
+legacy_migration commit
+
 printf '\nInstalled Falco %s. Start it from your applications or run %s.\n' "$version" "$bin_path"
 printf 'On first run, download the default speech model (about 670 MB).\n'
-printf 'The optional refiner in Preferences → Advanced adds about 1 GB.\n'
+printf 'The optional refiner in Settings → Refiner adds about 1 GB.\n'
+printf 'Quit any older Falco/Preferences windows, then reopen %s to use this version.\n' "$bin_path"

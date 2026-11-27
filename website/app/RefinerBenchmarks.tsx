@@ -80,7 +80,7 @@ export default function RefinerBenchmarks() {
           optional and may be slower on some devices. <a href="/benchmarks/refiner-2.5-linux.json">Raw measurements ↗</a>
         </p>
         <div className="benchmark-enable">
-          <h3>Enable refinement in Falco 2.5.1</h3>
+          <h3>Enable refinement in Falco 2.6</h3>
           <p>
             Enable <strong>Accelerate Phonon refinement</strong> in Settings → Refiner for a one-time
             215 MB download. Enable <strong>Show live transcript</strong> in Settings → Appearance for streamed cleanup previews. Also enable <strong>Start typing sooner</strong>

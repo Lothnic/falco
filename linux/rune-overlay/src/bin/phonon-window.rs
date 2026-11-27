@@ -685,7 +685,7 @@ fn view(s: &State, _: &mut Cx<State>) -> El {
                             .child(el().size(11.0, 11.0).radius(5.5).fill(accent()))
                             .child(col().gap(3.0).child(title("Falco")).child(secondary(
                                 &format!(
-                                    "v{} · Unified interface",
+                                    "v{} · Command Mode",
                                     if s.snapshot.version.is_empty() {
                                         env!("CARGO_PKG_VERSION")
                                     } else {
@@ -809,6 +809,11 @@ fn main() {
             ("settings", |s: &mut State| {
                 preview(s);
                 s.page = Page::Settings;
+            }),
+            ("command", |s: &mut State| {
+                preview(s);
+                s.page = Page::Settings;
+                s.preferences.search = TextEdit::new("Command Mode");
             }),
             ("refiner", |s: &mut State| {
                 preview(s);

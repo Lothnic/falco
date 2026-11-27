@@ -141,6 +141,10 @@ class RuneIndicator:
         # The fallback starts only if Rune is unavailable.
         pass
 
+    def set_command(self):
+        """Label the current recording as a Command Mode instruction."""
+        self._send("command")
+
     def hide_indicator(self):
         with self._lock:
             self._recording = False

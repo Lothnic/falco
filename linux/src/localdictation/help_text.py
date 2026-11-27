@@ -214,6 +214,31 @@ def _values():
         "<b>delete last sentence</b>, let go (after a line cut short, your app's own\n"
         "Ctrl+Z).\n\n")
 
+    command_block = ""
+    if not is_flatpak:
+        from .config import load_config
+        command_key = GLib.markup_escape_text(
+            getattr(load_config(), "command_hotkey", "") or "Ctrl+Alt+C")
+        command_block = f"""### Command Mode
+Say what to do with text you’ve selected, or what to write with nothing selected.
+
+1. Turn it on once: <b>Preferences \u2192 General \u2192 More shortcuts \u2192 Command Mode</b>.
+   The shortcut is <b>{command_key}</b> unless you pick another.
+2. Select text in any app, press <b>{command_key}</b>, say the change
+   (<b>make this shorter</b>, <b>turn this into an email</b>), and press it again.
+   The selection is replaced; Ctrl+Z in the app undoes it.
+3. With nothing selected, say what to write (<b>a short note about the deploy moving
+   to Friday</b>) and it is drafted at the cursor. A voice command such as
+   <b>open Firefox</b> or <b>search the web for train times</b> runs instead.
+
+Command Mode uses the same local AI as self-corrections and voice editing. If it
+isn't installed yet, turn it on once under <b>Preferences → Advanced</b> (or
+<b>Refiner</b> in Rune); one {AI_SIZE_TEXT} download, shared. Command Mode needs a
+Wayland session, like voice editing. Review a draft before you send it: it is
+written locally, and a short instruction can be taken more than one way. Esc stops
+the recording and nothing is sent; Command Mode never presses Enter for you.
+
+"""
     return {"hold": hold, "toggle": toggle, "paste_tip": paste_tip, "esc_tip": esc_tip,
             "ctrl_space_line": _ctrl_space_line(keys),
             "paste_line": paste_line, "key_choice_tip": key_choice_tip,
@@ -224,7 +249,7 @@ def _values():
             "cfg_dir": f["cfg_dir"], "cache_dir": f["cache_dir"],
             "FEEDBACK_URL": FEEDBACK_URL, "ISSUES_URL": ISSUES_URL, "REPORT_LINK": REPORT_LINK,
             "ENGINE_SIZE_TEXT": ENGINE_SIZE_TEXT, "AI_SIZE_TEXT": AI_SIZE_TEXT,
-            "CUDA_SIZE_TEXT": CUDA_SIZE_TEXT}
+            "CUDA_SIZE_TEXT": CUDA_SIZE_TEXT, "command_block": command_block}
 
 
 START_HERE = '''# Dictating in Three Steps
@@ -379,7 +404,7 @@ One box at a time, each box a dictation of its own:
     text is typed into your app; a preview can change as you continue speaking.
   • Smart quotes, the closing period and spacing are under Fine-tuning.
 
-### TuxTalk Labs
+{command_block}### TuxTalk Labs
 Labs features are experimental: they work, but they're still being refined, may
 change, and won't always get it right. Turn them on in <b>Preferences → Advanced →
 TuxTalk Labs</b>. Voice editing, select and move, and opening apps (and windows, keys
@@ -464,12 +489,12 @@ can't be changed by voice.
 ### If nothing happens
 TuxTalk tells you why in a notification:
   • <i>Select the text to change first</i>: nothing was selected.
-  • <i>I didn't catch what to change</i>: it heard no instruction. Hold the keys while you talk.
+  • <i>I didn't catch the instruction</i>: say it again while Falco is listening.
   • <i>The AI is still starting</i>: right after turning it on or starting TuxTalk, wait
     a few seconds.
-  • <i>No change</i>: the text may already read that way ("make it formal" on a
-    sentence that's formal already). Try other words.
-  • <i>You switched windows</i>: the rewrite wasn't typed; it's in Recent Dictations.
+  • <i>No result</i>: the text may already read that way ("make it formal" on a
+    sentence that's formal already), or the AI had nothing to add. Try other words.
+  • <i>You switched windows</i>: the text wasn't typed; it's in Recent Dictations.
 ## 🧪 Select and Move by Voice
 Select text or move the cursor by saying so. When a dictation is <b>only</b> one of these
 commands, TuxTalk does it instead of typing it: hold <b>{hold}</b>, say only <b>select the

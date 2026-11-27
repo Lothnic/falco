@@ -291,7 +291,8 @@ def _start_hold_recording(hold_key, held_modifiers, devices, cfg, input_device_i
 
 
 def _handle_key_event(event, hold_key, toggle_key, voice_cmds_combo, held_modifiers,
-                      devices, cfg, input_device_idx, paste_last_combo=None):
+                      devices, cfg, input_device_idx, paste_last_combo=None,
+                      command_combo=None):
     """Handle a single keyboard event. Both hold (F8) and toggle (F9) are always active.
 
     Grabbed devices are tracked in module state (see keyboard_grab), not
@@ -303,7 +304,7 @@ def _handle_key_event(event, hold_key, toggle_key, voice_cmds_combo, held_modifi
     modifier_hotkeys.note_compose_key(event, (hold_key, toggle_key), held_modifiers)
 
     if _on_test_or_combo(event, hold_key, toggle_key, voice_cmds_combo, paste_last_combo,
-                         held_modifiers, devices, cfg):
+                         command_combo, held_modifiers, devices, cfg, input_device_idx):
         return
     if toggle_key and _toggle_tap_holds_send(event, toggle_key, held_modifiers):
         send_countdown.key_pressed(toggle_key)
@@ -338,14 +339,16 @@ def _on_esc(cfg) -> None:
 
 
 def _on_test_or_combo(event, hold_key, toggle_key, voice_cmds_combo, paste_last_combo,
-                      held_modifiers, devices, cfg) -> bool:
+                      command_combo, held_modifiers, devices, cfg, input_device_idx) -> bool:
     """The hotkey test (presses reported to Preferences instead of
-    recording) and the two combos; True when *event* was theirs."""
+    recording) and the three combos; True when *event* was theirs."""
     if event.value == 1 and _hotkey_test_active():
         _report_test_press(event.code, hold_key, toggle_key)
         return True
-    return (_on_paste_last(event, paste_last_combo, held_modifiers, devices, cfg,
-                           (hold_key, toggle_key))
+    return (_on_command_combo(event, command_combo, held_modifiers, devices, cfg,
+                              input_device_idx)
+            or _on_paste_last(event, paste_last_combo, held_modifiers, devices, cfg,
+                              (hold_key, toggle_key))
             or _on_voice_commands_combo(event, voice_cmds_combo, held_modifiers, devices))
 
 
@@ -388,6 +391,35 @@ def _on_paste_last(event, combo, held_modifiers, devices, cfg, dictation_keys) -
             rs.state.paste_last = {"key": main_key, "key_up": False, "at": time.time()}
             return True
     return False
+
+
+def _on_command_combo(event, combo, held_modifiers, devices, cfg, input_device_idx) -> bool:
+    """Command Mode's combo: the first press starts a spoken instruction,
+    the second finishes it. True when *event* was the combo's.
+
+    The keyboards stay grabbed while it records, as they do for a toggle
+    recording, so holding the combo cannot type into the focused app."""
+    if not combo or event.value != 1 or not live.command_mode:
+        return False
+    required_mods, main_key = combo
+    if event.code != main_key or not check_modifiers_held(required_mods, held_modifiers):
+        return False
+    if rs.state.is_recording:
+        # Only its own command recording ends; during dictation it is ignored.
+        if rs.state.current.command_mode:
+            keyboard_grab.release_all()
+            _stop_recording(cfg)
+        return True
+    keyboard_grab.grab_keyboards_hiding(devices, {main_key, *held_modifiers})
+    try:
+        rec = recording.start_recording(cfg.beeps, cfg.notify, input_device_idx,
+                                        from_toggle=True, command_mode=True)
+    except Exception:
+        keyboard_grab.release_all()
+        raise
+    if rec is None:
+        keyboard_grab.release_all()
+    return True
 
 
 def _on_voice_commands_combo(event, combo, held_modifiers, devices) -> bool:
@@ -504,20 +536,22 @@ def _edit_cancelled_for_shift(devices, cfg) -> bool:
     return True
 
 
-def _helper_watch(devices, hold_key, toggle_key, voice_cmds_combo, paste_last_combo):
+def _helper_watch(devices, hold_key, toggle_key, voice_cmds_combo, paste_last_combo,
+                  command_combo):
     """Tell the hotkey helper, when it stands in for the keyboards, which keys
-    to report: the dictation keys, Esc, and the two combos."""
+    to report: the dictation keys, Esc, and the three combos."""
     for dev in devices:
         if hasattr(dev, "watch"):
             from .hotkey_helper_client import refused_combo, watch_specs
             for what, combo in (("Voice Commands", voice_cmds_combo),
-                                ("Paste Last Dictation", paste_last_combo)):
+                                ("Paste Last Dictation", paste_last_combo),
+                                ("Command Mode", command_combo)):
                 why = combo and refused_combo(*combo)
                 if why:
                     logger.warning(f"The {what} shortcut won't work with the hotkey helper "
                                    f"({why}). Pick one with Ctrl+Alt, Ctrl+Super or Alt+Super.")
             dev.watch(watch_specs(hold_key, toggle_key, ecodes.KEY_ESC,
-                                  (voice_cmds_combo, paste_last_combo)))
+                                  (voice_cmds_combo, paste_last_combo, command_combo)))
 
 
 def run(cfg: Settings, input_device_idx, keyboards=None):
@@ -690,7 +724,7 @@ def _watch(cfg: Settings, devices, keys: "hotkey_keys.Hotkeys") -> None:
     make Compose (read now, not on each press: the desktop can be slow)."""
     _claim_desktop_hotkeys(cfg)
     _helper_watch(devices, keys.hold_key, keys.toggle_key, keys.voice_cmds_combo,
-                  keys.paste_last_combo)
+                  keys.paste_last_combo, keys.command_combo)
     modifier_hotkeys.note(devices, keys.hold_key, keys.toggle_key,
                           *ctrl_space.held_with(keys.hold_key),
                           *ctrl_space.held_with(keys.toggle_key))
@@ -715,7 +749,8 @@ def _on_key_event(event, keys: "hotkey_keys.Hotkeys", held_modifiers, devices, c
             svc.last_activity = now
         _handle_key_event(key_event, keys.hold_key, keys.toggle_key, keys.voice_cmds_combo,
                           held_modifiers, devices, cfg, svc.input_device_idx,
-                          paste_last_combo=keys.paste_last_combo)
+                          paste_last_combo=keys.paste_last_combo,
+                          command_combo=keys.command_combo)
 
 
 def _read_key_events(devices, keys: "hotkey_keys.Hotkeys", held_modifiers, cfg: Settings, svc,

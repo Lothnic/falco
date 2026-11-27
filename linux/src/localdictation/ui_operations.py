@@ -33,8 +33,8 @@ def download_models(candidate, changes, report, cancel, all_models=False):
                 from .cuda_download import download_cuda_libraries
                 _download(download_cuda_libraries, report, cancel)
             _download(make_model_download_func(candidate.model), report, cancel)
-    refiner_changes = {"ai_corrections", "voice_editing", "refiner_model", "refiner_acceleration", "language"}
-    if (all_models or refiner_changes & changes.keys()) and (candidate.ai_corrections or candidate.voice_editing):
+    refiner_changes = {"ai_corrections", "voice_editing", "command_mode", "refiner_model", "refiner_acceleration", "language"}
+    if (all_models or refiner_changes & changes.keys()) and (candidate.ai_corrections or candidate.voice_editing or candidate.command_mode):
         model = ai_download.selected_model(candidate)
         _download(ai_download.make_engine_download_func(), report, cancel)
         _download(ai_download.make_model_download_func(model), report, cancel)

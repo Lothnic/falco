@@ -103,6 +103,9 @@ class Recording:
     # Voice editing: an instruction for the selected text (Shift + the
     # dictation key), not dictation.
     edit_mode: bool = False
+    # Command Mode: an instruction for the selection, or text to draft when
+    # nothing is selected (its own shortcut, recording.command_mode).
+    command_mode: bool = False
     # Its press held a pending send, so a tap too short to be a dictation
     # says "Not sent" rather than "Cancelled".
     held_send: bool = False

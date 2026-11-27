@@ -103,8 +103,9 @@ def _transcribe_chunk(frames, rec_sr, number, pause, message, detector):
 
 def arm_chunker(rec):
     """Give recording *rec* a pause detector when chunked dictation is on.
-    Never for a voice edit: its instruction needs the whole recording."""
-    if live.chunk_pause_seconds > 0 and not rec.edit_mode:
+    Never for a voice edit or Command Mode: its instruction needs the whole
+    recording."""
+    if live.chunk_pause_seconds > 0 and not rec.edit_mode and not rec.command_mode:
         from .chunking import PauseDetector
         from .voice_detector import Unavailable
         # Without the voice detector (its failure is in the log), the
@@ -135,7 +136,7 @@ def _arm_streamer(rec):
     (engine.preview_transcript): the CPU Parakeet model. Whisper and the GPU
     Parakeet have none, and their recordings are transcribed whole at
     release, exactly as before streaming."""
-    if rec.edit_mode or rec.chunker is not None:
+    if rec.edit_mode or rec.command_mode or rec.chunker is not None:
         return
     from . import engine, refiner_prefetch
     if not engine.can_preview():

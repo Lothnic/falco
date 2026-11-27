@@ -463,13 +463,14 @@ def open_input_stream(rec, device_idx) -> None:
 
 def start_recording(beeps_on: bool, notify_on: bool, input_device_idx,
                     from_toggle: bool = False, edit_mode: bool = False,
-                    held_send: bool = False):
+                    held_send: bool = False, command_mode: bool = False):
     """Begin capturing audio: the new Recording, or None when no microphone
     would open.
 
     *from_toggle* marks a start by the toggle key, so a quick second tap can
     switch it to hands-free (see toggle_pressed_while_recording).
     *held_send*: the press that starts it already held a pending send.
+    *command_mode*: the recording is a Command Mode instruction, not dictation.
 
     On failure this releases any input-device grabs before returning. The
     keyboard is grabbed just before this is called, so without that release a
@@ -480,7 +481,7 @@ def start_recording(beeps_on: bool, notify_on: bool, input_device_idx,
     # microphone opens, so a send set up meanwhile waits for this recording.
     serial, held = send_countdown.recording_begins()
     rec = rs.state.current = rs.Recording(
-        rs.Message(serial=serial), edit_mode=edit_mode,
+        rs.Message(serial=serial), edit_mode=edit_mode, command_mode=command_mode,
         held_send=held or held_send, press_t0=time.time())
     # Set before the stream starts — _sd_callback drops frames unless it's set.
     rs.state.is_recording = True
@@ -536,7 +537,12 @@ def start_recording(beeps_on: bool, notify_on: bool, input_device_idx,
         try:
             generation = indicator.show_at_position()
             indicator.start_recording()
+            if command_mode:
+                set_command = getattr(indicator, "set_command", None)
+                if set_command is not None:
+                    set_command()
             if (generation is not None and live.rune_live_preview and not rec.edit_mode
+                    and not rec.command_mode
                     and not rec.message.dictation_check
                     and engine.can_preview() and not focused_window.is_password()):
                 rec.preview_generation = generation

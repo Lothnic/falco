@@ -272,6 +272,10 @@ class Settings:
     voice_commands_hotkey: str = "Ctrl+Alt+V"  # hotkey combo to open voice commands quick reference
     # hotkey combo that types the last dictation again ("" = off)
     paste_last_hotkey: str = "Ctrl+Alt+P"
+    # Command Mode: one shortcut records an instruction for the selected text,
+    # or, when nothing is selected, text to draft and insert at the cursor.
+    command_mode: bool = False
+    command_hotkey: str = "Ctrl+Alt+C"
     auto_check_updates: bool = True      # automatically check for updates on startup (once per day)
     last_update_check: str = ""          # ISO timestamp of last update check
     # "auto" (detect language) or "manual" (use `language`); UI state for prefs
@@ -938,6 +942,8 @@ LIVE_APPLIED_KEYS = {
     "toggle_hotkey",
     "voice_commands_hotkey",
     "paste_last_hotkey",
+    "command_mode",
+    "command_hotkey",
     "mode",
     "key_delay",
     "indicator_position",
