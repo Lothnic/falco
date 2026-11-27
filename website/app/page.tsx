@@ -56,7 +56,7 @@ const capabilities = [
   },
   {
     title: "Optional cleanup",
-    body: "The local Phonon refiner removes fillers and false starts, with optional acceleration and streamed Rune previews. Dictation works without it, too.",
+    body: "Correct yourself while speaking: “Monday, no, Tuesday” becomes “Tuesday.” Enable Refine dictation for local cleanup, with optional acceleration and streamed Rune previews.",
     meta: "Phonon · Optional acceleration",
   },
   {
@@ -331,7 +331,7 @@ function InsertArt() {
 }
 
 function OverlayArt() {
-  return <Image src="/images/rune-2.6.1.png" alt="Falco settings in the unified dark Rune window, with example shortcut values" width={2200} height={1560} style={{ width: "100%", height: "auto" }} />;
+  return <Image src="/images/rune-2.6.2.png" alt="Falco settings in the unified dark Rune window, showing the refiner controls" width={2200} height={1560} style={{ width: "100%", height: "auto" }} />;
 }
 
 function NetworkArt() {

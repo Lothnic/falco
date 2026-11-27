@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 test("renders the Falco landing page", async () => {
   const html = await readFile(new URL("../.next/server/app/index.html", import.meta.url), "utf8");
 
-  assert.match(html, /<title>Falco 2\.6\.1: local dictation for Linux<\/title>/i);
+  assert.match(html, /<title>Falco 2\.6\.2: local dictation for Linux<\/title>/i);
   assert.match(html, /data-theme="dark"/);
   assert.match(html, /Speak\.<br\/>It types\.<br\/>Nothing<br\/>/);
   assert.match(html, /Your voice never leaves the room\./);
@@ -26,6 +26,8 @@ test("renders the Falco landing page", async () => {
   assert.match(html, /Not an official Phonon or TuxTalk release\./);
   assert.match(html, /Rune dashboard/);
   assert.match(html, /Command Mode/);
+  assert.match(html, /Correct yourself while speaking/);
+  assert.match(html, /docs\/spoken-corrections\.md/);
   assert.match(html, /Wayland or X11/);
   assert.match(html, /Loading model/);
   assert.doesNotMatch(html, /Whistle/i);
@@ -54,11 +56,12 @@ test("publishes versioned refiner benchmarks with their measurement scope", asyn
   assert.match(text, /Refiner HTTP requests only/);
   assert.match(text, /very long outputs and contexts have not been tested/);
   assert.match(text, /RTX 4060 Laptop GPU, 8 GB/);
-  assert.match(html, /releases\/tag\/v2\.6\.1/);
+  assert.match(html, /releases\/tag\/v2\.6\.2/);
   assert.match(text, /215 MB/);
   assert.match(text, /Rune dashboard now offers an optional 215 MB drafter download once Phonon is ready/);
   assert.match(text, /restart dictation when ready/);
   assert.match(text, /DFlash accelerates text refinement/);
+  assert.match(text, /these historical timings have not been rerun with that prompt/);
   assert.doesNotMatch(text, /Specification \/ Falco 0\.1|Rev\. 0\.1|until the first release/);
 });
 
@@ -68,7 +71,7 @@ test("website, app and Rune identify the same release", async () => {
   const app = await readFile(new URL("../../linux/src/localdictation/__init__.py", import.meta.url), "utf8");
   const pythonPackage = await readFile(new URL("../../linux/pyproject.toml", import.meta.url), "utf8");
   const rune = await readFile(new URL("../../linux/rune-overlay/Cargo.toml", import.meta.url), "utf8");
-  assert.equal(pkg.version, "2.6.1");
+  assert.equal(pkg.version, "2.6.2");
   assert.ok(release.includes(`version = "${pkg.version}"`));
   assert.ok(app.includes(`__version__ = "${pkg.version}"`));
   assert.ok(pythonPackage.includes(`version = "${pkg.version}"`));

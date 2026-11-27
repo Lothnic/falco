@@ -19,6 +19,10 @@ from .normalize import (
 
 logger = setup_logger(__name__)
 
+# The structural matcher explores alternative splices. Keep this exceptional
+# path bounded so a collapsed answer to a long dictation cannot delay fallback.
+_MAX_SHORT_CORRECTION_WORDS = 64
+
 
 def restore_opening_word(raw: str, refined: str) -> str:
     """Keep a spoken discourse opener when cleanup dropped it.
@@ -93,7 +97,8 @@ def refinement_key(mode):
 def refine(raw: str, refiner_mode: str = "minimal", on_preview=None):
     """*raw* as the refiner rewrites it, or None when it couldn't or its answer
     is not plausible: an empty answer, or one over twice the transcript's
-    length or, past 8 words, under 0.4 of it. The same check both the release
+    length or, past 8 words, under 0.4 of it unless a self-correction's
+    deletions pass the structural correction check. The same check both the release
     and the guess made while recording use, so a prefetched answer is exactly
     the one that would have been asked for."""
     from . import refiner_preview
@@ -103,8 +108,13 @@ def refine(raw: str, refiner_mode: str = "minimal", on_preview=None):
                                        mode=refiner_mode, **options)
     before = len(raw.split())
     after = len(candidate.split()) if candidate else 0
-    if candidate and after <= 2 * before and (before <= 8 or after >= 0.4 * before):
-        return candidate
+    if candidate and after <= 2 * before:
+        if before <= 8 or after >= 0.4 * before:
+            return candidate
+        from .ai_cleanup import has_correction
+        from .correction_safety import edit_is_safe
+        if before <= _MAX_SHORT_CORRECTION_WORDS and has_correction(raw) and edit_is_safe(raw, candidate):
+            return candidate
     if callback is not None:
         from .ai_stream import notify_preview
         notify_preview(callback, "")

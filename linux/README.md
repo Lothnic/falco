@@ -1,6 +1,6 @@
 # Falco
 
-Current release: **2.6.1 — Faster refinement**.
+Current release: **2.6.2 — Spoken corrections**.
 
 An experimental community Linux dictation app built on [TuxTalk](https://github.com/ronb1964/TuxTalk), using the separately distributed [Phonon refiner](https://huggingface.co/Infatoshi/phonon-refiner-1.7b) for local transcript cleanup. This is not an official Phonon or TuxTalk release. Its tray and service are adapted from TuxTalk, with a Rune dashboard and recording overlay.
 
@@ -12,6 +12,21 @@ With the refiner active, **Settings → Refiner → Writing style**
 offers Minimal, Casual, Formal, AI prompt, and Match the focused app. App
 matching uses the desktop's application ID and defaults to Minimal when
 Falco can't identify the app.
+
+## Falco 2.6.2 — Spoken corrections
+
+With **Settings → Refiner → Refine dictation** enabled, say the replacement in
+the same recording: **“Meet on Monday, no, Tuesday”** → **“Meet on Tuesday.”**
+**“Use red paint, not that, blue paint”** → **“Use blue paint.”** The prompt now
+explicitly handles self-corrections, preserves ordinary negations and unrelated
+details, and keeps your language and script.
+
+Clear “no” and “not that” cues also work across pauses. Verified short
+corrections can pass the normal length check, with bounded structural checks;
+long dictations retain the existing guard. DFlash is optional and the feature
+uses your existing refiner files. [Usage and limitations](../docs/spoken-corrections.md).
+
+[2.6.2 release notes](../docs/releases/v2.6.2.md)
 
 ## Falco 2.6.1 — Faster refinement
 
@@ -51,6 +66,13 @@ backups, with the dark slate-and-mint appearance. The GTK compatibility interfac
 is still available with `FALCO_LEGACY_UI=1`.
 
 [2.6.0 release notes](../docs/releases/v2.6.0.md)
+
+### Spoken self-corrections
+
+With **Settings → Refiner → Refine dictation** on, say the replacement in the
+same recording: **“Use red paint, no wait, blue paint”** should become
+**“Use blue paint.”** DFlash is not required. [Examples, behavior across pauses
+and cue handling](../docs/spoken-corrections.md).
 
 ### Refiner edition features
 

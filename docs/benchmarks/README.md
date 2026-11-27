@@ -1,6 +1,6 @@
 # Falco 2.5 Linux refiner benchmark
 
-The 2.5 refiner engine (also included in 2.5.1) with its optional DFlash2 drafter reduced total refiner-request time by
+The 2.5 refiner engine (retained through 2.6.2) with its optional DFlash2 drafter reduced total refiner-request time by
 **32% (1.47× faster)** across this initial local test. Gains increased with
 output length in the four prompts measured. The longest output, 60 tokens,
 finished **46.5% sooner (1.87× faster)**. Very short output changed little.
@@ -20,6 +20,9 @@ requests per configuration, rather than averaging the row speedups. Streamed
 text first arrived in approximately **47–51 ms**; first-token generation was
 similar in both configurations, while 2.5 can expose that text progressively.
 This is server text arrival, before any overlay rendering overhead.
+
+Falco 2.6.2 updates the cleanup prompt. These historical measurements have not
+been rerun with that prompt; they do not establish 2.6.2 end-to-end latency.
 
 ## Method and scope
 

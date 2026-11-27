@@ -148,11 +148,15 @@ SECTIONS = (
                 "for next time", "fix"),
     )),
     Section("Changing Your Mind", FIXING,
-            note="Needs <b>Fix self-corrections with AI</b> turned on in Preferences → "
-                 "Advanced (a one-time download of about {ai_size})",
+            note="Enable <b>Refine dictation</b> in Settings → Refiner "
+                 "(Fix self-corrections with AI in compatibility Preferences → Advanced). "
+                 "Missing AI files need a one-time download of about {ai_size}. "
+                 "Say the replacement before releasing the dictation key; ordinary "
+                 "negations such as ‘no problem’ are kept.",
             commands=(
-        Command(("no wait", "I mean", "make that", "scratch that", "or rather"),
-                'correct yourself mid-sentence: "meet at 3, no wait, 4" → "meet at 4"',
+        Command(("no wait", "I mean", "make that", "scratch that", "not that", "no", "or rather"),
+                'correct yourself mid-sentence: "meet on Monday, no, Tuesday" → '
+                '"meet on Tuesday"; "use red paint, not that, blue paint" → "use blue paint"',
                 "correction"),
     )),
     Section("Command Mode", EDITING, commands=(

@@ -689,7 +689,7 @@ fn view(s: &State, _: &mut Cx<State>) -> El {
                             .child(el().size(11.0, 11.0).radius(5.5).fill(accent()))
                             .child(col().gap(3.0).child(title("Falco")).child(secondary(
                                 &format!(
-                                    "v{} · Faster refinement",
+                                    "v{} · Spoken corrections",
                                     if s.snapshot.version.is_empty() {
                                         env!("CARGO_PKG_VERSION")
                                     } else {

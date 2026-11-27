@@ -20,9 +20,11 @@ from .cleanup import LEGIT_DOUBLES, NUMBER_WORDS
 _FILLERS = {"um", "uh", "umm", "uhm", "er", "erm", "like"}
 _FILLER_PHRASES = [("you", "know")]
 _CUES = [("no", "wait"), ("wait", "no"), ("wait",), ("i", "mean"), ("sorry",), ("actually",),
-         ("make", "that"), ("scratch", "that"), ("or", "rather"), ("rather",), ("no",)]
+         ("make", "that"), ("scratch", "that"), ("not", "that"), ("or", "rather"), ("rather",), ("no",)]
 _CUES_LONGEST_FIRST = sorted(_CUES, key=len, reverse=True)
-_CUE_WORDS = {word for cue in _CUES for word in cue}
+# "Not" is meaningful negation even though it also occurs in "not that".
+# Only the complete phrase can be stripped as a cue, never a trailing "not".
+_CUE_WORDS = {word for cue in _CUES for word in cue} - {"not"}
 # How many words a correction may throw away besides its correction phrase.
 _MAX_REPLACED = 6
 # Small words that may appear on both sides of a spliced correction without

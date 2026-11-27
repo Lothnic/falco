@@ -1,6 +1,6 @@
 # Falco
 
-[**2.6.1 — Faster refinement**](https://github.com/Lothnic/falco/releases/tag/v2.6.1)
+[**2.6.2 — Spoken corrections**](https://github.com/Lothnic/falco/releases/tag/v2.6.2)
 
 Falco is a local voice dictation app for Linux. Hold a dictation key, speak,
 and the text is typed into the application you are using. Speech recognition
@@ -53,6 +53,21 @@ official Phonon or TuxTalk release.
   over SSH. `falco --toggle` and `falco --start`/`--stop` drive the running
   app.
 
+## Falco 2.6.2 — Spoken corrections
+
+Change your mind while dictating and keep only the corrected wording:
+**“Meet on Monday, no, Tuesday”** → **“Meet on Tuesday.”**
+**“Use red paint, not that, blue paint”** → **“Use blue paint.”**
+
+Enable **Settings → Refiner → Refine dictation**, and say the replacement before
+releasing the key. The prompt now explicitly handles self-corrections while
+preserving ordinary negations and unrelated details. Clear “no” and “not that”
+cues also work across pauses within a recording. Verified short corrections
+can pass the length check without allowing arbitrary shortening of long dictations.
+DFlash is optional; no new model download is required if your refiner is ready.
+
+[Usage and limitations](docs/spoken-corrections.md) · [2.6.2 release notes](docs/releases/v2.6.2.md)
+
 ## Falco 2.6.1 — Faster refinement
 
 Rune now offers **Try faster refinement?** once Phonon is installed and a local
@@ -92,6 +107,12 @@ needs a Wayland session and does not automatically submit drafts.
 
 [2.6.0 release notes](docs/releases/v2.6.0.md)
 
+### Spoken self-corrections
+
+Say **“Meet me on Monday, no wait, Tuesday”** and the refiner should keep
+**“Meet me on Tuesday.”** Keep **Refine dictation** enabled and say the
+replacement before releasing the key. [Usage, examples and cue handling](docs/spoken-corrections.md).
+
 ### Refiner edition features
 
 Falco **2.5 — Refiner edition** adds optional Phonon acceleration and streamed
@@ -119,7 +140,8 @@ same pinned Phonon target and llama.cpp b12210. Four synthetic English
 prompts, two measured runs each after warm-up; outputs matched. Streamed
 text first arrived in approximately **47–51 ms**, before overlay rendering.
 
-These are **refiner-only** timings, excluding speech recognition, model loading,
+Falco 2.6.2 updates the cleanup prompt; these historical timings have not been
+rerun with the new prompt. These are **refiner-only** timings, excluding speech recognition, model loading,
 UI rendering and text insertion. CPU-only and very long outputs have not yet
 been measured. [Results, raw data and reproduction instructions](docs/benchmarks/README.md).
 

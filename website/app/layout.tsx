@@ -21,11 +21,11 @@ const themeScript = `(function(){try{var t=localStorage.getItem("falco-theme");i
 export const metadata: Metadata = {
   title: `Falco ${version}: local dictation for Linux`,
   description:
-    "Falco 2.6.1: local dictation for Linux that rewrites selected text or drafts new text from a spoken instruction. Audio and text stay on your machine.",
+    "Falco 2.6.2: local dictation for Linux with spoken self-corrections, selected-text rewrites and local drafting. Audio and text stay on your machine.",
   openGraph: {
     title: `Falco ${version}: local dictation for Linux`,
     description:
-      "Command Mode adds spoken rewrites and local drafts without sending text anywhere. Install Falco 2.6.1 for Linux.",
+      "Correct yourself while speaking and keep the final wording. Install Falco 2.6.2 for local dictation on Linux.",
     type: "website",
   },
 };
