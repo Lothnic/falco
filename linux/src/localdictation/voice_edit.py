@@ -494,6 +494,8 @@ def _change_selection(get_instruction, beeps_on, injection_mode, where, t0, mess
     if not instruction:
         notices.edit_problem("no_instruction", beeps_on)
         return _UNCHANGED
+    if command and not _command_selection_matches(selected, where, beeps_on, message):
+        return _UNCHANGED
     # Esc a moment before stops their keys at the first.
     with keyboard_output.until_cancelled(message):
         moved = voice_commands.navigate(instruction, beeps_on, where)
@@ -530,6 +532,12 @@ def _draft_command(get_instruction, beeps_on, injection_mode, message, where):
     if not instruction:
         notices.edit_problem("no_instruction", beeps_on)
         return _UNCHANGED
+    if focused_class is None:
+        notices.edit_problem("cant_check_window", beeps_on)
+        return _UNCHANGED
+    if focus_moved(focused_class, window):
+        notices.edit_problem("focus_moved", beeps_on)
+        return _UNCHANGED
     with keyboard_output.until_cancelled(message):
         moved = voice_commands.navigate(instruction, beeps_on, where)
         if moved is not None:
@@ -538,9 +546,6 @@ def _draft_command(get_instruction, beeps_on, injection_mode, message, where):
         ran = voice_actions.run(instruction, beeps_on)
         if ran is not None:
             return False if ran else _UNCHANGED
-    if focused_class is None:
-        notices.edit_problem("cant_check_window", beeps_on)
-        return _UNCHANGED
     ai = live.ai_engine
     if ai is None:
         notices.edit_problem("not_installed", beeps_on)

@@ -212,6 +212,7 @@ def test_command_with_nothing_selected_drafts_at_the_cursor(monkeypatch):
 
 
 def test_draft_command_says_when_the_ai_is_missing(monkeypatch):
+    monkeypatch.setattr(voice_edit, "focus_moved", lambda *a: False)
     problems = []
     monkeypatch.setattr(voice_edit.live, "ai_engine", None)
     monkeypatch.setattr(voice_edit.notices, "edit_problem",
@@ -321,10 +322,24 @@ def test_selected_command_does_not_overwrite_changed_text(monkeypatch):
     monkeypatch.setattr(voice_actions, "run", lambda *a: None)
     monkeypatch.setattr(voice_edit, "_edit_with_keys", lambda *a: voice_edit._NOT_A_KEY_EDIT)
     monkeypatch.setattr(voice_edit, "_rewritten", lambda *a: "replacement")
-    monkeypatch.setattr(voice_edit, "_command_selection_matches", lambda *a: False)
+    matches = iter((True, False))
+    monkeypatch.setattr(voice_edit, "_command_selection_matches", lambda *a: next(matches))
     replace = Mock()
     monkeypatch.setattr(voice_edit, "_rewrite_over_selection", replace)
     result = voice_edit._change_selection(lambda: "make it shorter", False, "type", ("kwrite", "window"),
                                          0, SimpleNamespace(cancelled=False), None, [], command=True)
     assert result is voice_edit._UNCHANGED
     replace.assert_not_called()
+
+
+def test_draft_does_not_run_an_action_after_focus_changes_during_transcription(monkeypatch):
+    from unittest.mock import Mock
+    _draft_harness(monkeypatch)
+    monkeypatch.setattr(voice_edit, "focus_moved", lambda *a: True)
+    monkeypatch.setattr(voice_edit.notices, "edit_problem", lambda *a: None)
+    action = Mock(return_value=True)
+    monkeypatch.setattr(voice_actions, "run", action)
+    result = voice_edit._draft_command(lambda: "press enter", False, "type",
+                                       SimpleNamespace(cancelled=False), ("kwrite", "original"))
+    assert result is voice_edit._UNCHANGED
+    action.assert_not_called()
