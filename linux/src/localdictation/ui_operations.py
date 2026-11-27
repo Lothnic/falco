@@ -13,9 +13,17 @@ def _check(cancel):
 
 def _download(factory, report, cancel):
     _check(cancel)
-    if not factory(report, cancel):
+    last = ("", None)
+
+    def progress(message, percent=0):
+        nonlocal last
+        last = (message, percent)
+        report(message, percent)
+
+    if not factory(progress, cancel):
         _check(cancel)
-        raise RuntimeError("The download did not finish. Check your connection and retry.")
+        from .download_utils import failure_reason
+        raise RuntimeError(failure_reason(*last) or "The download did not finish. Check your connection and retry.")
 
 
 def download_models(candidate, changes, report, cancel, all_models=False):
@@ -72,6 +80,9 @@ def save_settings(changes, report, cancel):
 
 
 def perform(kind, payload, report, cancel):
+    if kind == "enable_refiner_acceleration":
+        from .refiner_offer import enable
+        return enable(report, cancel)
     if kind == "setup_keyboard":
         from . import secure_input
         report("Waiting for your desktop to approve typing access…", 20)

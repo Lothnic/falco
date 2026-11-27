@@ -18,7 +18,7 @@ def test_snapshot_uses_service_and_reports_actual_refiner_state(monkeypatch):
     monkeypatch.setattr(secure_input, 'is_installed', lambda: False)
     monkeypatch.setattr(config, 'load_custom_commands', lambda: {})
     monkeypatch.setattr(ui_bridge.config, "load_config", lambda: cfg)
-    monkeypatch.setattr(ui_bridge.ai_download, "is_installed", lambda: False)
+    monkeypatch.setattr(ui_bridge.ai_download, "is_installed", lambda model=None: False)
     monkeypatch.setattr(ui_bridge.custom_words, "load", lambda: ["Parakeet"])
     monkeypatch.setattr(ui_bridge.history, "get_entries", lambda: ["Example"])
     service = Mock()

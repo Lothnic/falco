@@ -45,3 +45,32 @@ def test_job_status_uses_private_fallback_without_a_login_runtime(monkeypatch, t
     monkeypatch.setattr(ui_jobs.single_instance, 'private_session_dir', lambda: None)
     monkeypatch.setattr(ui_jobs.single_instance, 'runtime_dir', lambda: str(tmp_path))
     assert ui_jobs._path() == str(tmp_path / 'dashboard-job.json')
+
+
+def test_background_cancellation_supports_the_real_downloader(state):
+    from localdictation.download_utils import with_retries
+    token = ui_jobs.Cancellation()
+    assert with_retries(lambda: 'cached.gguf', 'refiner', token) == 'cached.gguf'
+    assert token.wait(0) is False
+
+
+def test_cancelling_interrupts_a_download_retry_wait(state):
+    from localdictation.download_utils import with_retries
+    ui_jobs._write({'busy': True, 'cancellable': True})
+    def fetch():
+        ui_jobs.cancel()
+        raise OSError('temporary connection failure')
+    with pytest.raises(InterruptedError, match='cancelled'):
+        with_retries(fetch, 'drafter', ui_jobs.Cancellation())
+    assert ui_jobs.Cancellation().wait(5) is True
+
+
+def test_cancel_can_arrive_while_waiting_in_another_process(state):
+    import threading
+    ui_jobs._write({'busy': True, 'cancellable': True})
+    timer = threading.Timer(0.05, ui_jobs.cancel)
+    timer.start()
+    try:
+        assert ui_jobs.Cancellation().wait(1) is True
+    finally:
+        timer.join()

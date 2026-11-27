@@ -58,7 +58,7 @@ def start(kind, payload=None):
             raise ValueError("Another operation is running. Finish or cancel it first.")
         job_id = uuid.uuid4().hex
         _write(dict(id=job_id, kind=kind, payload=payload or {}, busy=True, failed=False,
-                    message="Starting…", progress=0, cancelled=False, cancellable=kind in ("save_settings", "download_models", "hotkey_test"), started=time.time()))
+                    message="Starting…", progress=0, cancelled=False, cancellable=kind in ("save_settings", "download_models", "enable_refiner_acceleration", "hotkey_test"), started=time.time()))
         try:
             proc = subprocess.Popen([sys.executable, "-m", __name__], stdin=subprocess.DEVNULL,
                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -92,6 +92,16 @@ class Cancellation:
     def is_set(self):
         with _locked():
             return bool(_read().get("cancelled"))
+
+    def wait(self, timeout=None):
+        """Event-compatible wait; cancellation can arrive from another process."""
+        deadline = None if timeout is None else time.monotonic() + max(0, timeout)
+        while not self.is_set():
+            remaining = None if deadline is None else deadline - time.monotonic()
+            if remaining is not None and remaining <= 0:
+                return False
+            time.sleep(0.1 if remaining is None else min(0.1, remaining))
+        return True
 
 
 def report(message, percent=0):

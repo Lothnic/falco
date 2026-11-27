@@ -331,7 +331,7 @@ function InsertArt() {
 }
 
 function OverlayArt() {
-  return <Image src="/images/rune-2.6.0.png" alt="Falco settings in the unified dark Rune window, with example shortcut values" width={2200} height={1560} style={{ width: "100%", height: "auto" }} />;
+  return <Image src="/images/rune-2.6.1.png" alt="Falco settings in the unified dark Rune window, with example shortcut values" width={2200} height={1560} style={{ width: "100%", height: "auto" }} />;
 }
 
 function NetworkArt() {

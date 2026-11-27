@@ -79,7 +79,7 @@ CATALOG = (
 )
 
 MANAGED = {"language_mode", "last_update_check", "dictation_language",
-           "recommend_notice_shown", "parakeet_update_offered", "vulkan_slower"}
+           "recommend_notice_shown", "parakeet_update_offered", "refiner_acceleration_offered", "vulkan_slower"}
 CHOICES = {
     "hotkey": [("", "Not configured"), *[(x, x) for x in config.HOTKEY_CHOICES]],
     "toggle_hotkey": [("", "Disabled"), *[(x, x) for x in config.HOTKEY_CHOICES]],

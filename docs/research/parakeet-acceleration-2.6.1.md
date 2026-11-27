@@ -1,0 +1,48 @@
+# Parakeet acceleration for Falco 2.6.1
+
+Research checked 2026-11-27. Scope: Falco's Linux Parakeet Ultra path; documentation only. No model downloads, inference experiments, or source-code changes were performed. Conclusions below distinguish documented support from compatibility inferred from architecture.
+
+## Release decision
+
+**Do not add a DFlash drafter download or claim speculative ASR acceleration for 2.6.1.** I found no published, trained Parakeet TDT v3/Ultra speculative drafter **and** compatible draft/verify implementation for either of Falco's shipped ASR backends. This is a finding from the sources checked, not proof that no unpublished implementation exists. The upstream [DFlash/DFlash2 supported models](https://github.com/z-lab/dflash#supported-models) list LLM-specific pairings, without Parakeet. The pinned [whisper.cpp 1.9.5 Parakeet API](https://raw.githubusercontent.com/ggml-org/whisper.cpp/v1.9.5/include/parakeet.h) exposes greedy decoding and no drafter interface; [onnx-asr](https://github.com/istupakov/onnx-asr) documents greedy decoding for its supported architectures.
+
+Existing deployable mechanisms are ordinary inference optimization: INT8 CPU execution and Vulkan GGML execution. Further runtime tuning is the lowest-risk release work. Photon is a credible existing Ultra-compatible backend to evaluate separately; NVIDIA's native NeMo-Speech.cpp and CUDA/TensorRT paths also warrant controlled evaluation. None has a demonstrated Falco-specific speedup in this research.
+
+## What must actually be compatible
+
+Falco's local configuration establishes the current boundary:
+
+- [parakeet_ultra.py](../../linux/src/localdictation/parakeet_ultra.py) pins Olicorne's `a1fe742` ONNX export and the Ultra checkpoint converted by whisper.cpp 1.9.5 to `q8_0` GGML.
+- [parakeet_engine.py](../../linux/src/localdictation/parakeet_engine.py) explicitly selects `CPUExecutionProvider` and `quantization="int8"`; [whisper_vulkan.py](../../linux/src/localdictation/whisper_vulkan.py) pins engine 1.9.5.
+- [ai_download.py](../../linux/src/localdictation/ai_download.py) pins llama.cpp `b12210` and the optional 215 MB **Phonon refiner** drafter. The [refiner model card](https://huggingface.co/Infatoshi/phonon-refiner-1.7b#files) identifies that file as a drafter for the text correction model. It does not accelerate audio recognition.
+
+[Moondream's Ultra card](https://huggingface.co/moondream/parakeet-ultra) confirms the same architecture, tokenizer, and 0.6B parameter count as NVIDIA v3. [NVIDIA's model card](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3#model-architecture) identifies a FastConformer encoder and TDT decoder. [Olicorne's card](https://huggingface.co/Olicorne/parakeet-tdt-0.6b-v3-ultra-onnx) confirms an Ultra export built for onnx-asr, with separate encoder, decoder/joint, preprocessor, and vocabulary assets. Its current files have evolved: do not treat current `main` or a different precision as byte-identical to Falco's pinned export.
+
+## Why LLM DFlash is different
+
+[NVIDIA's DFlash implementation documentation](https://raw.githubusercontent.com/NVIDIA/Model-Optimizer/main/examples/speculative_decoding/doc/dflash.md) describes masked parallel token drafting conditioned on the target's hidden states. A target-compatible verifier checks proposed tokens; the drafter is trained against the target's representations and output vocabulary. A GGUF container or a similar parameter count does not establish compatibility.
+
+TDT instead predicts **tokens and durations**, including blank decisions, and advances through acoustic frames using those durations. This frame-skipping is already an architectural acceleration, described in the [original TDT paper](https://arxiv.org/abs/2304.06795). Falco's ASR is therefore not a causal transformer LLM with an interchangeable text drafter. A valid speculative implementation must handle acoustic conditioning, prediction-network state, frame positions, duration decisions, rejection, and state restoration. Same tokenizer alone would not make even a base-v3 drafter demonstrably suitable for post-trained Ultra.
+
+**Engineering inference:** speculative decoding could save only the work its verifier avoids. It does not remove Ultra's acoustic encoder pass; added drafting/verification can outweigh savings. Profile encoder and decoder time before investing in a TDT drafter. No percentage of Falco runtime or expected speedup is asserted here.
+
+## Practical options
+
+| Option | Actual compatibility and deployment assessment |
+| --- | --- |
+| Tune current CPU/GPU paths | Preserve Ultra and existing formats. Measure thread count, session contention, model residency, and preprocessing/transfer overhead. [ONNX Runtime](https://onnxruntime.ai/docs/performance/tune-performance/threading.html) documents intra/inter-op threading and spinning tradeoffs; [Parakeet's pinned API](https://raw.githubusercontent.com/ggml-org/whisper.cpp/v1.9.5/include/parakeet.h) provides separate encoder/decoder timings. These are tuning candidates, not guaranteed gains. |
+| onnx-asr with CUDA/TensorRT | The backend [documents Parakeet v3 with TensorRT FP16](https://github.com/istupakov/onnx-asr/blob/main/docs/usage.md#tensorrt) and [requires the GPU runtime/NVIDIA libraries](https://github.com/istupakov/onnx-asr/blob/main/docs/installation.md). Ultra's architecture makes a compatible floating-point export plausible; Falco's CPU-only package and shipped INT8 graphs do **not** establish GPU support. Validate operators, provider placement/fallback, export layout, accuracy, and packaging. No drafter required. |
+| NeMo CUDA inference | NVIDIA implements [label-looping and conditional CUDA Graphs for RNN-T/TDT](https://developer.nvidia.com/blog/accelerating-leaderboard-topping-asr-models-10x-with-nvidia-nemo/), reducing launch overhead and batch divergence without a speculative model. Requires a NeMo-compatible Ultra checkpoint and the CUDA/PyTorch stack. It is a replacement runtime, not a switch in Falco's Vulkan backend; published batched results are not desktop batch-one latency evidence. |
+| Photon + Ultra | **Explicit model compatibility:** Ultra's [publisher usage example](https://huggingface.co/moondream/parakeet-ultra#usage) runs `md.photon("moondream/parakeet-ultra")`. Photon uses [compiled per-chip GPU programs](https://moondream.ai/photon); consult its [model/hardware support matrix](https://moondream.ai/photon/support). Requires a new adapter and verification of target hardware, distribution terms, offline operation, and Falco's word boosting. Published Ultra performance compares different checkpoints/runtimes on a B200 with 128 requests in flight, so it cannot predict Falco latency. |
+| NVIDIA NeMo-Speech.cpp | [Official native runtime](https://github.com/NVIDIA/NeMo-Speech.cpp) supports Parakeet v3 and CPU/CUDA/Metal/Vulkan builds. Its [ASR guide](https://github.com/NVIDIA/NeMo-Speech.cpp/blob/main/docs/asr/models.md) supports custom TDT conversion and requires GGUF. Ultra conversion is an architectural compatibility hypothesis to test; Falco's GGML `.bin` is not its documented input. Needs conversion, adapter and word-boosting validation. The guide explicitly identifies Parakeet as full-utterance, without cache-aware streaming. |
+| Smaller quantization / Parakeet Redux | Olicorne publishes an [Ultra W4A8 encoder](https://huggingface.co/Olicorne/parakeet-tdt-0.6b-v3-ultra-onnx#files); support and accuracy must be checked in the actual runtime. [Moondream Redux](https://huggingface.co/moondream/parakeet-redux) is an existing 178 MB ternary sibling with a documented Photon CPU/Apple path. It changes weights and accuracy, is not an Ultra drafter, and is not a drop-in replacement for the pinned ONNX/GGML files. Evaluate as a separately selected model, outside this patch. |
+
+A misleading near-match: [NeMo-Speech.cpp v0.3.0](https://github.com/NVIDIA/NeMo-Speech.cpp/releases/tag/v0.3.0) advertises MTP/DFlash2 for **Nemotron 3.5 Transcribe 30B-A4B**, a separate speech LLM. That does not establish Parakeet speculative support. Likewise, [Riva ASR Plugin 2.0](https://docs.nvidia.com/ace-for-games/Riva-asr/2.0/developer-pack.html) ships TDT v2/v3 GGUF models and several backends, but does not document an Ultra speculative drafter.
+
+## Research-only options and validation gate
+
+[Whisper-Flash](https://arxiv.org/abs/2609.32869) conditions a parallel drafter on Whisper audio features and decoder states. [EAGLE-ASR](https://arxiv.org/abs/2610.13506) evaluates Whisper and **Conformer AED** models. These are relevant design precedents, not released Parakeet TDT compatibility; a Conformer encoder does not make an AED decoder a TDT decoder.
+
+A Parakeet-specific project would need an acoustic/token/duration drafting design, Ultra-specific training or distillation, an efficient stateful verifier, an export/runtime implementation, and exact-output checks against Falco's greedy decoder (including word boosting). Encoder reuse, incremental precomputation, and changed chunking are also research/engineering candidates: full-utterance TDT support does not prove cache-aware streaming equivalence.
+
+For any later backend candidate, compare the **same pinned Ultra checkpoint** and representative short dictations on supported hardware. Record cold startup, warm end-to-end latency, encoder/decoder time, memory, WER, punctuation, timestamps, word boosting, and failure/fallback behavior. Keep file-transcription throughput separate from key-release-to-text latency. Adopt only measured improvements with acceptable accuracy and packaging costs; no numerical gain is promised for 2.6.1.

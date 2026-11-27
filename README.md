@@ -1,6 +1,6 @@
 # Falco
 
-[**2.6.0 — Command Mode**](https://github.com/Lothnic/falco/releases/tag/v2.6.0)
+[**2.6.1 — Faster refinement**](https://github.com/Lothnic/falco/releases/tag/v2.6.1)
 
 Falco is a local voice dictation app for Linux. Hold a dictation key, speak,
 and the text is typed into the application you are using. Speech recognition
@@ -52,6 +52,28 @@ official Phonon or TuxTalk release.
   subtitles, with no window and no running app, so it works in a script or
   over SSH. `falco --toggle` and `falco --start`/`--stop` drive the running
   app.
+
+## Falco 2.6.1 — Faster refinement
+
+Rune now offers **Try faster refinement?** once Phonon is installed and a local
+AI feature is active. Choose **Download & enable** for the optional 215 MB
+DFlash2 drafter, or **Not now** to keep your setup. Nothing downloads until you
+accept. After success, restart dictation when ready; an ongoing recording is
+never restarted by the offer. You can enable or disable it later in
+**Settings → Refiner**. The offer waits while you record, download or have
+unsaved settings, and appears when you open Overview or Settings.
+
+This patch also fixes model downloads from Rune failing with
+`'Cancellation' object has no attribute 'wait'`, preserves useful download
+errors, and removes the stale “Working…” notice after an operation finishes.
+
+DFlash accelerates Phonon's text cleanup. No compatible Parakeet Ultra drafter
+was found for Falco's current ONNX/Vulkan backends; speech recognition keeps its
+existing engine. [Research and alternatives](docs/research/parakeet-acceleration-2.6.1.md).
+
+![Falco's optional acceleration offer](docs/images/rune-2.6.1-acceleration.png)
+
+[2.6.1 release notes](docs/releases/v2.6.1.md)
 
 ## Falco 2.6.0 — Command Mode
 

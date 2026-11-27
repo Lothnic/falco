@@ -1,6 +1,6 @@
 # Falco
 
-Current release: **2.6.0 — Command Mode**.
+Current release: **2.6.1 — Faster refinement**.
 
 An experimental community Linux dictation app built on [TuxTalk](https://github.com/ronb1964/TuxTalk), using the separately distributed [Phonon refiner](https://huggingface.co/Infatoshi/phonon-refiner-1.7b) for local transcript cleanup. This is not an official Phonon or TuxTalk release. Its tray and service are adapted from TuxTalk, with a Rune dashboard and recording overlay.
 
@@ -12,6 +12,26 @@ With the refiner active, **Settings → Refiner → Writing style**
 offers Minimal, Casual, Formal, AI prompt, and Match the focused app. App
 matching uses the desktop's application ID and defaults to Minimal when
 Falco can't identify the app.
+
+## Falco 2.6.1 — Faster refinement
+
+After Phonon is ready, Rune offers an optional **215 MB** DFlash2 download in
+Overview or Settings. **Not now**, Esc and Close remember your choice without
+downloading. **Download & enable** runs a cancellable download, then enables the
+drafter only after success. Restart dictation when ready to use it. Failed or
+cancelled attempts keep acceleration off and can be retried in Settings → Refiner.
+The offer waits for recordings, downloads and unsaved settings; it never opens
+a second window or interrupts another app. Existing enabled choices are kept.
+
+This patch fixes Rune model downloads failing because their cancellation token
+was missing `wait()`. Download errors now retain the underlying cause, and a
+finished operation clears the stale “Working…” notice.
+
+DFlash applies to Phonon refinement only. No compatible drafter was found for
+Parakeet Ultra with Falco's current backends. [Primary-source research and
+runtime alternatives](../docs/research/parakeet-acceleration-2.6.1.md).
+
+[2.6.1 release notes](../docs/releases/v2.6.1.md)
 
 ## Falco 2.6.0 — Command Mode
 

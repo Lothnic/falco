@@ -295,6 +295,8 @@ class Settings:
     refiner_model: str = "auto"
     # Optional DFlash2 drafter, downloaded separately; CPU/GPU gains vary.
     refiner_acceleration: bool = False
+    # Remember an answer to the optional Phonon acceleration offer.
+    refiner_acceleration_offered: bool = False
     # spoken file names, casing and symbols become code (code_dictation.py)
     developer_mode: str = "auto"
     # add names the refiner's spelling/capital fixes reveal (learned_words.py)
@@ -1006,6 +1008,7 @@ LIVE_APPLIED_KEYS = {
     "dictation_language",
     "recommend_notice_shown",
     "parakeet_update_offered",
+    "refiner_acceleration_offered",
     "vulkan_slower",
 }
 

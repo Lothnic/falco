@@ -20,7 +20,7 @@ def _service():
 
 
 def snapshot():
-    from . import learned_words, settings_backup, stats, ui_jobs, ui_settings, vocabulary
+    from . import learned_words, refiner_offer, settings_backup, stats, ui_jobs, ui_settings, vocabulary
     cfg = config.load_config()
     data = {
         "version": __version__,
@@ -41,6 +41,7 @@ def snapshot():
         "recent": history.get_entries(),
         "settings": ui_settings.catalog(cfg),
         "job": ui_jobs.status(),
+        "refiner_offer": refiner_offer.eligible(cfg),
     }
     commands = config.load_custom_commands()
     rows, snippets = vocabulary.split_commands(data["words"], commands)
@@ -83,6 +84,16 @@ def execute(request):
     action = request.get("action", "snapshot")
     if action == "snapshot":
         return snapshot()
+    if action == "refiner_offer":
+        from . import refiner_offer, ui_jobs
+        accept = request.get("accept")
+        if not isinstance(accept, bool):
+            raise ValueError("Choose Download or Not now.")
+        if not accept:
+            return refiner_offer.dismiss()
+        if not refiner_offer.eligible(config.load_config()):
+            raise ValueError("Your refiner setup changed. Check Settings → Refiner.")
+        return ui_jobs.start("enable_refiner_acceleration")
     if action in ("start_service", "stop_service", "restart_service"):
         service = _service()
         if action == "start_service":

@@ -8,6 +8,8 @@ use std::io::Write;
 mod dashboard_ipc;
 #[path = "../dashboard/pages.rs"]
 mod pages_ui;
+#[path = "../dashboard/refiner_offer.rs"]
+mod refiner_offer_ui;
 #[path = "../dashboard/settings.rs"]
 mod settings_ui;
 #[path = "../dashboard/words.rs"]
@@ -55,6 +57,7 @@ struct Snapshot {
     model: String,
     refiner: bool,
     refiner_installed: bool,
+    refiner_offer: bool,
     auto_space: bool,
     auto_period: bool,
     words: Vec<String>,
@@ -70,6 +73,7 @@ struct State {
     notice_error: bool,
     dismissed_job: String,
     confirmation: Option<(String, Value)>,
+    offer_closed: bool,
     preferences: settings_ui::Preferences,
     vocabulary: words_ui::Vocabulary,
     word_input: TextEdit,
@@ -685,7 +689,7 @@ fn view(s: &State, _: &mut Cx<State>) -> El {
                             .child(el().size(11.0, 11.0).radius(5.5).fill(accent()))
                             .child(col().gap(3.0).child(title("Falco")).child(secondary(
                                 &format!(
-                                    "v{} · Command Mode",
+                                    "v{} · Faster refinement",
                                     if s.snapshot.version.is_empty() {
                                         env!("CARGO_PKG_VERSION")
                                     } else {
@@ -731,6 +735,7 @@ fn view(s: &State, _: &mut Cx<State>) -> El {
                         },
                     ),
             );
+    refiner_offer_ui::view(s, &mut layer);
     rune_kit::root(base, layer)
 }
 fn bridge(request: &Value) -> Result<Value, String> {
@@ -819,6 +824,12 @@ fn main() {
                 preview(s);
                 s.page = Page::Settings;
                 s.preferences.section = "refiner".into();
+            }),
+            ("acceleration", |s: &mut State| {
+                preview(s);
+                s.page = Page::Settings;
+                s.preferences.section = "refiner".into();
+                s.snapshot.refiner_offer = true;
             }),
             ("select", |s: &mut State| {
                 preview(s);
@@ -917,7 +928,11 @@ fn main() {
                                     .unwrap_or("")
                                     .into();
                             }
-                            if let Some(message) = value.get("message").and_then(Value::as_str) {
+                            if value.get("job_id").is_some() {
+                                String::new()
+                            } else if let Some(message) =
+                                value.get("message").and_then(Value::as_str)
+                            {
                                 message.into()
                             } else if action == "copy" {
                                 "Copied to clipboard.".into()
@@ -1093,5 +1108,67 @@ mod tests {
         click(&mut rt, "new-snippet");
         assert!(rt.state.vocabulary.snippet);
         assert!(rt.find("snippet-text").is_some());
+    }
+
+    #[test]
+    fn acceleration_modal_is_inert_behind_and_defaults_to_declining() {
+        let mut s = State::default();
+        preview(&mut s);
+        s.snapshot.refiner_offer = true;
+        let mut rt = Runtime::new(s, view, (860.0, 600.0), Env::new(true, 1.0));
+        rt.frame(0.0);
+        assert!(rt.find("refiner-offer-dialog").is_some());
+        click(&mut rt, "nav-Words");
+        assert_eq!(rt.state.page, Page::Home);
+        rt.key(rune::KeyEvent {
+            key: rune::Key::Enter,
+            mods: Default::default(),
+        });
+        rt.frame(0.0);
+        assert!(rt.state.offer_closed);
+        assert!(rt.find("refiner-offer-dialog").is_none());
+        assert!(rt.state.snapshot.refiner_offer); // awaiting the bridge's saved answer
+    }
+
+    #[test]
+    fn acceleration_offer_waits_for_recording_jobs_and_unsaved_changes() {
+        let mut s = State::default();
+        preview(&mut s);
+        s.snapshot.refiner_offer = true;
+        assert!(refiner_offer_ui::visible(&s));
+        s.snapshot.recording = true;
+        assert!(!refiner_offer_ui::visible(&s));
+        s.snapshot.recording = false;
+        s.snapshot.job.busy = true;
+        assert!(!refiner_offer_ui::visible(&s));
+        s.snapshot.job.busy = false;
+        s.preferences.dirty.insert("hotkey".into());
+        assert!(!refiner_offer_ui::visible(&s));
+        s.preferences.dirty.clear();
+        let mut rt = Runtime::new(s, view, (860.0, 600.0), Env::new(true, 1.0));
+        rt.frame(0.0);
+        rt.key(rune::KeyEvent {
+            key: rune::Key::Escape,
+            mods: Default::default(),
+        });
+        rt.frame(0.0);
+        assert!(rt.state.offer_closed);
+    }
+
+    #[test]
+    fn accepting_acceleration_opens_refiner_without_faking_enabled_state() {
+        let mut s = State::default();
+        preview(&mut s);
+        s.snapshot.refiner_offer = true;
+        let mut rt = Runtime::new(s, view, (1100.0, 780.0), Env::new(true, 1.0));
+        rt.frame(0.0);
+        click(&mut rt, "refiner-offer-accept");
+        assert!(rt.state.offer_closed);
+        assert_eq!(rt.state.page, Page::Settings);
+        assert_eq!(rt.state.preferences.section, "refiner");
+        assert_eq!(
+            rt.state.preferences.edits["refiner_acceleration"].text,
+            "false"
+        );
     }
 }

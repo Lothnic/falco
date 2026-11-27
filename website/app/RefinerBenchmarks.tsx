@@ -25,7 +25,7 @@ export default function RefinerBenchmarks() {
           <p className="eyebrow">05 / Linux benchmarks</p>
           <h2 id="benchmark-title">More output.<br /><span className="accent">Less waiting.</span></h2>
           <p className="section-side">
-            The 2.5 refiner engine, included in 2.5.1, pairs the Phonon refiner with an optional DFlash2 drafter. In this initial
+            The 2.5 refiner engine, retained in 2.6.1, pairs the Phonon refiner with an optional DFlash2 drafter. In this initial
             Linux test, the gains grew with generated output length. The longest measured output
             was 60 tokens; very long outputs and contexts have not been tested.
           </p>
@@ -80,11 +80,11 @@ export default function RefinerBenchmarks() {
           optional and may be slower on some devices. <a href="/benchmarks/refiner-2.5-linux.json">Raw measurements ↗</a>
         </p>
         <div className="benchmark-enable">
-          <h3>Enable refinement in Falco 2.6</h3>
+          <h3>Enable refinement in Falco 2.6.1</h3>
           <p>
-            Enable <strong>Accelerate Phonon refinement</strong> in Settings → Refiner for a one-time
-            215 MB download. Enable <strong>Show live transcript</strong> in Settings → Appearance for streamed cleanup previews. Also enable <strong>Start typing sooner</strong>
-            {" "}with CPU Parakeet to refine during speech pauses. Only completed, checked text is typed.
+            The Rune dashboard now offers an optional 215 MB drafter download once Phonon is ready. Choose <strong>Download &amp; enable</strong>, then restart dictation when ready. You can also enable <strong>Accelerate Phonon refinement</strong> in Settings → Refiner. Enable <strong>Show live transcript</strong> in Settings → Appearance for streamed cleanup previews. Also enable <strong>Start typing sooner</strong>
+            {" "}with CPU Parakeet to refine during speech pauses. Only completed, checked text is typed. DFlash accelerates text refinement; a compatible Parakeet Ultra drafter has not been found for the current backends.{" "}
+            <a href="https://github.com/Lothnic/falco/blob/main/docs/research/parakeet-acceleration-2.6.1.md">Parakeet research and alternatives ↗</a>
           </p>
         </div>
       </div>
