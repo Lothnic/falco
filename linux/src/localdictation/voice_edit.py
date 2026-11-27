@@ -512,6 +512,8 @@ def _change_selection(get_instruction, beeps_on, injection_mode, where, t0, mess
     # Esc while the AI rewrote it: nothing replaces the selection.
     if result is None or _cancelled(message) or notices.refuse_password_field(beeps_on):
         return _UNCHANGED
+    if command and not _command_selection_matches(selected, where, beeps_on, message):
+        return _UNCHANGED
     logger.info(f"Voice edit result: {live.loggable(result)} "
                 f"(took {time.time() - t0:.2f}s)")
     return _rewrite_over_selection(result, injection_mode, message, beeps_on, where, went_in)
@@ -552,16 +554,32 @@ def _draft_command(get_instruction, beeps_on, injection_mode, message, where):
         if result is None:
             notices.edit_problem("no_answer", beeps_on)
         return _UNCHANGED
+    from . import history
+    history.add_entry(result)
     into = where
     if focus_moved(focused_class, window):
         notices.edit_problem("window_changed", beeps_on)
         return _UNCHANGED
-    from . import history
-    history.add_entry(result)
+    if not _command_selection_matches(None, where, beeps_on, message):
+        return _UNCHANGED
     outcome = _type_rewrite(result, injection_mode, message, beeps_on, into)
     if outcome in delivery.GAVE_UP_UNTYPED:
         return _UNCHANGED
     return outcome == "ok"
+
+
+def _command_selection_matches(expected, where, beeps_on, message):
+    """Recheck the selection after generation, restoring the probe clipboard."""
+    copied = _copy_selection(where, beeps_on, message)
+    if copied is None:
+        return False
+    selected, put_back = copied
+    if put_back is not None:
+        put_back()
+    if (selected or "") != (expected or ""):
+        notices.edit_problem("selection_changed", beeps_on)
+        return False
+    return True
 
 
 def _copy_selection(where, beeps_on, message):

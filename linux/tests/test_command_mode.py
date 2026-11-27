@@ -162,6 +162,7 @@ def _draft_harness(monkeypatch, answer="Hello there."):
     monkeypatch.setattr(voice_actions, "run", lambda *a: None)
     monkeypatch.setattr(voice_edit.notices, "refuse_password_field", lambda beeps: False)
     monkeypatch.setattr(voice_edit, "focus_moved", lambda *a: False)
+    monkeypatch.setattr(voice_edit, "_command_selection_matches", lambda *a: True)
     monkeypatch.setattr(history, "add_entry",
                         lambda text: calls.setdefault("history", []).append(text))
 
@@ -294,3 +295,36 @@ def test_disabled_command_mode_does_not_reserve_its_shortcut():
     assert ui_settings.checked_changes(old, {"hotkey":"F8"}).hotkey == "F8"
     with pytest.raises(ValueError, match="different shortcut"):
         ui_settings.checked_changes(old, {"command_mode":True})
+
+
+def test_draft_does_not_replace_a_selection_made_during_generation(monkeypatch):
+    calls = _draft_harness(monkeypatch)
+    monkeypatch.setattr(voice_edit, "_command_selection_matches", lambda *a: False)
+    assert voice_edit._draft_command(lambda: "write a note", False, "type",
+                                    SimpleNamespace(cancelled=False), ("kwrite", "original")) is voice_edit._UNCHANGED
+    assert "result" not in calls
+
+
+def test_command_selection_probe_restores_clipboard_and_detects_changes(monkeypatch):
+    restored, problems = [], []
+    monkeypatch.setattr(voice_edit, "_copy_selection", lambda *a: ("different text", lambda: restored.append(True)))
+    monkeypatch.setattr(voice_edit.notices, "edit_problem", lambda why, beeps: problems.append(why))
+    assert not voice_edit._command_selection_matches("original", ("kwrite", "window"), False, SimpleNamespace())
+    assert restored == [True] and problems == ["selection_changed"]
+
+
+def test_selected_command_does_not_overwrite_changed_text(monkeypatch):
+    from unittest.mock import Mock
+    monkeypatch.setattr(voice_edit, "_copy_selection", lambda *a: ("original", lambda: None))
+    monkeypatch.setattr(voice_edit.notices, "refuse_password_field", lambda *a: False)
+    monkeypatch.setattr(voice_edit.voice_commands, "navigate", lambda *a: None)
+    monkeypatch.setattr(voice_actions, "run", lambda *a: None)
+    monkeypatch.setattr(voice_edit, "_edit_with_keys", lambda *a: voice_edit._NOT_A_KEY_EDIT)
+    monkeypatch.setattr(voice_edit, "_rewritten", lambda *a: "replacement")
+    monkeypatch.setattr(voice_edit, "_command_selection_matches", lambda *a: False)
+    replace = Mock()
+    monkeypatch.setattr(voice_edit, "_rewrite_over_selection", replace)
+    result = voice_edit._change_selection(lambda: "make it shorter", False, "type", ("kwrite", "window"),
+                                         0, SimpleNamespace(cancelled=False), None, [], command=True)
+    assert result is voice_edit._UNCHANGED
+    replace.assert_not_called()
